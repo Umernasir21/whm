@@ -184,20 +184,42 @@ class DatabaseSeeder extends Seeder
         // --- Sample orders via services (real numbering + totals) ---
         $soService = app(SalesOrderService::class);
         $poService = app(PurchaseOrderService::class);
+        $invoiceService = app(\App\Services\InvoiceService::class);
 
         if (\App\Models\SalesOrder::count() === 0) {
-            foreach ($customers as $i => $customer) {
-                $soService->create([
+            // A spread of delivered orders across the last ~6 months so the
+            // dashboard has real revenue, profit, a trend line, and invoices.
+            $lineSets = [
+                [['product_name' => 'Wireless Headphones', 'quantity' => 2, 'unit_cost' => 129.99, 'buy_cost' => 50.00],
+                 ['product_name' => 'USB-C Cable 2m', 'quantity' => 3, 'unit_cost' => 19.99, 'buy_cost' => 3.20]],
+                [['product_name' => 'Bluetooth Speaker', 'quantity' => 1, 'unit_cost' => 79.99, 'buy_cost' => 28.00],
+                 ['product_name' => 'Phone Case', 'quantity' => 4, 'unit_cost' => 24.99, 'buy_cost' => 4.50]],
+                [['product_name' => 'Wireless Headphones', 'quantity' => 1, 'unit_cost' => 129.99, 'buy_cost' => 50.00]],
+                [['product_name' => 'USB-C Cable 2m', 'quantity' => 10, 'unit_cost' => 19.99, 'buy_cost' => 3.20]],
+                [['product_name' => 'Bluetooth Speaker', 'quantity' => 2, 'unit_cost' => 79.99, 'buy_cost' => 28.00]],
+                [['product_name' => 'Phone Case', 'quantity' => 6, 'unit_cost' => 24.99, 'buy_cost' => 4.50]],
+            ];
+
+            foreach ($lineSets as $i => $items) {
+                $customer = $customers[$i % $customers->count()];
+                $order = $soService->create([
                     'customer_id' => $customer->id,
-                    'order_type' => $i === 0 ? 'regular' : 'dropship',
+                    'order_type' => $i % 3 === 0 ? 'dropship' : 'regular',
                     'payment_method' => 'Card',
                     'shipping' => 12.50,
                     'tax' => 8.25,
-                    'items' => [
-                        ['product_name' => 'Wireless Headphones', 'condition' => 'new', 'quantity' => 2, 'unit_cost' => 129.99],
-                        ['product_name' => 'USB-C Cable 2m', 'condition' => 'new', 'quantity' => 3, 'unit_cost' => 19.99],
-                    ],
+                    'items' => array_map(fn ($it) => $it + ['condition' => 'new', 'line_type' => 'rg'], $items),
                 ]);
+
+                // Backdate across months and mark delivered + invoiced.
+                $when = now()->subMonths(5 - min($i, 5))->subDays($i * 2);
+                $order->forceFill(['status' => 'delivered', 'created_at' => $when, 'approved_at' => $when])->save();
+                $order->shipment()->update([
+                    'carrier' => ['USPS', 'UPS', 'FedEx'][$i % 3],
+                    'tracking_number' => '9400' . str_pad((string) (1000 + $i), 12, '0', STR_PAD_LEFT),
+                    'status' => 'delivered', 'shipped_at' => $when, 'delivered_at' => $when->copy()->addDays(2),
+                ]);
+                $invoiceService->generate($order);
             }
 
             $poService->create([

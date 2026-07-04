@@ -62,6 +62,7 @@ Route::prefix('v1')->group(function () {
             ->parameters(['sales-orders' => 'salesOrder']);
         Route::post('sales-orders/{salesOrder}/invoice', [InvoiceController::class, 'generate']);
         Route::get('sales-orders/{salesOrder}/label', [\App\Http\Controllers\Api\ShippingLabelController::class, 'download']);
+        Route::get('invoices', [InvoiceController::class, 'index']);
         Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download']);
 
         // Purchasing

@@ -20,16 +20,16 @@ export function AppBar() {
     <div className="mb-4 flex items-center justify-between">
       <button
         onClick={() => router.push("/console")}
-        className="flex items-center gap-1.5 text-sm text-slate-500 transition hover:text-slate-800"
+        className="flex items-center gap-1.5 text-sm text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
       >
         <ArrowLeft size={15} /> Console
       </button>
       {user && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-slate-500">{user.name}</span>
+          <span className="text-slate-500 dark:text-slate-400">{user.name}</span>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-slate-600 transition hover:text-red-600"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-slate-600 transition hover:text-red-600 dark:border-slate-700 dark:text-slate-300"
           >
             <LogOut size={14} /> Logout
           </button>

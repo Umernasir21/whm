@@ -174,6 +174,9 @@ export const endpoints = {
     receivePO: (id: number, d: unknown) => api.post(`${V1}/purchase-orders/${id}/receive`, d),
     updatePO: (id: number, d: unknown) => api.put(`${V1}/purchase-orders/${id}`, d),
 
+    // Invoices
+    invoices: (params = {}) => api.get(`${V1}/invoices${qs(params)}`),
+
     // Returns / RMA
     returns: (params = {}) => api.get(`${V1}/returns${qs(params)}`),
     createReturn: (d: unknown) => api.post(`${V1}/returns`, d),
@@ -220,6 +223,7 @@ export const NAV_MODULES = [
   { key: "products", label: "Products", icon: "Package", perm: "products.view" },
   { key: "categories", label: "Categories", icon: "FolderTree", perm: "categories.view" },
   { key: "customers", label: "Customers", icon: "Users", perm: "customers.view" },
+  { key: "invoices", label: "Invoices", icon: "FileText", perm: "sales_orders.view" },
   { key: "vendors", label: "Vendors", icon: "Factory", perm: "vendors.view" },
   { key: "warehouses", label: "Warehouses", icon: "Warehouse", perm: "warehouses.view" },
   { key: "returns", label: "Returns (RMA)", icon: "Undo2", perm: "returns.view" },
