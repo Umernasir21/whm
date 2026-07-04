@@ -33,8 +33,12 @@ async function request<T>(
 
   if (res.status === 401) {
     setToken(null);
-    if (typeof window !== "undefined") window.location.href = "/login";
-    throw new Error("Unauthorized");
+    // Redirect to login only if we're not already there — otherwise the
+    // bootstrap /me check on the login page would loop forever.
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError("Unauthorized", 401);
   }
 
   if (!res.ok) {
