@@ -12,16 +12,18 @@ import {
 } from "recharts";
 import {
   ShoppingCart, PackageOpen, Boxes, Loader2, AlertTriangle,
-  TrendingUp, DollarSign, TriangleAlert, Truck, PackageX, Eye, Download,
+  TrendingUp, DollarSign, TriangleAlert, Truck, PackageX, Eye, Download, Plus, X,
 } from "lucide-react";
-import { endpoints, NAV_MODULES, openAuthedPdf, downloadAuthedPdf } from "@/lib/api";
+import { endpoints, NAV_MODULES, openAuthedPdf, downloadAuthedPdf, ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/AppLayout";
 
 const money = (n: number) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 const num = (n: number) => (n ?? 0).toLocaleString("en-US");
 
 type Column = { key: string; label: string; render?: (row: any) => React.ReactNode };
-type ModuleView = { load: () => Promise<any>; rows: (r: any) => any[]; columns: Column[] };
+type Field = { key: string; label: string; type?: "text" | "number" | "email"; required?: boolean };
+type CreateConfig = { label: string; fields: Field[]; submit: (data: any) => Promise<any> };
+type ModuleView = { load: () => Promise<any>; rows: (r: any) => any[]; columns: Column[]; create?: CreateConfig };
 
 const VIEWS: Record<string, ModuleView> = {
   products: {
@@ -33,6 +35,17 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "on_hand", label: "On Hand", render: (p) => num(p.on_hand ?? 0) },
       { key: "default_price_cents", label: "Price", render: (p) => money(p.default_price_cents) },
     ],
+    create: {
+      label: "Product",
+      fields: [
+        { key: "name", label: "Name", required: true },
+        { key: "sku", label: "SKU (optional — auto if blank)" },
+        { key: "default_price_cents", label: "Sale price", type: "number" },
+        { key: "default_cost_cents", label: "Cost", type: "number" },
+        { key: "reorder_point", label: "Reorder point", type: "number" },
+      ],
+      submit: (d) => endpoints.v1.createProduct(d),
+    },
   },
   inventory: {
     load: () => endpoints.v1.inventory({ per_page: 25 }),
@@ -53,6 +66,14 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "parent", label: "Parent", render: (c) => c.parent?.name ?? "—" },
       { key: "products_count", label: "Products" },
     ],
+    create: {
+      label: "Category",
+      fields: [
+        { key: "name", label: "Name", required: true },
+        { key: "description", label: "Description" },
+      ],
+      submit: (d) => endpoints.v1.createCategory(d),
+    },
   },
   customers: {
     load: () => endpoints.customers(""),
@@ -63,6 +84,22 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "company_name", label: "Company", render: (c) => c.company_name || "—" },
       { key: "city", label: "City", render: (c) => c.shipping?.city ?? "—" },
     ],
+    create: {
+      label: "Customer",
+      fields: [
+        { key: "first_name", label: "First name", required: true },
+        { key: "last_name", label: "Last name" },
+        { key: "email", label: "Email", type: "email", required: true },
+        { key: "company_name", label: "Company" },
+        { key: "phone", label: "Phone" },
+        { key: "shipping_address1", label: "Address", required: true },
+        { key: "shipping_city", label: "City", required: true },
+        { key: "shipping_state", label: "State", required: true },
+        { key: "shipping_zip", label: "Zip", required: true },
+        { key: "shipping_country", label: "Country", required: true },
+      ],
+      submit: (d) => endpoints.createCustomer(d),
+    },
   },
   invoices: {
     load: () => endpoints.v1.invoices({ per_page: 25 }),
@@ -92,6 +129,19 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "purchase_orders_count", label: "POs" },
       { key: "total_spend", label: "Spend", render: (v) => money(v.total_spend ?? 0) },
     ],
+    create: {
+      label: "Vendor",
+      fields: [
+        { key: "name", label: "Vendor name", required: true },
+        { key: "email", label: "Email", type: "email" },
+        { key: "phone", label: "Phone" },
+        { key: "address1", label: "Address" },
+        { key: "city", label: "City" },
+        { key: "state", label: "State" },
+        { key: "country", label: "Country" },
+      ],
+      submit: (d) => endpoints.v1.createVendor(d),
+    },
   },
   warehouses: {
     load: () => endpoints.v1.warehouses(),
@@ -177,6 +227,8 @@ function ConsoleInner() {
   const isDashboard = active === "dashboard";
   const view = VIEWS[active];
   const [state, setState] = useState<{ loading: boolean; error?: string; data?: any }>({ loading: true });
+  const [refresh, setRefresh] = useState(0);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -187,14 +239,28 @@ function ConsoleInner() {
       .then((d: any) => alive && setState({ loading: false, data: d }))
       .catch((e: any) => alive && setState({ loading: false, error: e.message }));
     return () => { alive = false; };
-  }, [active]); // eslint-disable-line
+  }, [active, refresh]); // eslint-disable-line
 
   const rows = useMemo(() => (view && state.data ? view.rows(state.data) : []), [view, state.data]);
   const title = NAV_MODULES.find((m) => m.key === active)?.label ?? "Dashboard";
 
   return (
     <AppLayout current={active}>
-      <h1 className="mb-5 text-xl font-semibold">{title}</h1>
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        {view?.create && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <Plus size={16} /> New {view.create.label}
+          </button>
+        )}
+      </div>
+
+      {showCreate && view?.create && (
+        <CreateModal config={view.create} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); setRefresh((n) => n + 1); }} />
+      )}
 
       {state.loading && (
         <div className="flex items-center gap-2 text-slate-400">
@@ -348,6 +414,64 @@ function DataTable({ columns, rows }: { columns: Column[]; rows: any[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* ---- Generic create modal ------------------------------------------------ */
+function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onClose: () => void; onCreated: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<Record<string, string[]>>();
+
+  const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }));
+
+  async function submit() {
+    setSaving(true); setErr(undefined);
+    // Build payload: drop blanks, coerce number fields.
+    const payload: Record<string, any> = {};
+    for (const f of config.fields) {
+      const raw = values[f.key];
+      if (raw === undefined || raw === "") continue;
+      payload[f.key] = f.type === "number" ? Number(raw) : raw;
+    }
+    try {
+      await config.submit(payload);
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof ApiError ? (e.errors ?? { _: [e.message] }) : { _: ["Failed to save."] });
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 font-semibold"><Plus size={18} className="text-indigo-600" /> New {config.label}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18} /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {config.fields.map((f) => (
+            <label key={f.key} className="block text-xs text-slate-400">
+              {f.label}{f.required && <span className="text-red-500"> *</span>}
+              <input
+                type={f.type === "number" ? "number" : f.type === "email" ? "email" : "text"}
+                value={values[f.key] ?? ""}
+                onChange={(e) => set(f.key, e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+              {err?.[f.key] && <span className="text-[11px] text-red-600">{err[f.key][0]}</span>}
+            </label>
+          ))}
+        </div>
+        {err?._ && <p className="mt-3 text-sm text-red-600">{err._[0]}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">Cancel</button>
+          <button onClick={submit} disabled={saving} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+            {saving && <Loader2 className="animate-spin" size={15} />} Create
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
