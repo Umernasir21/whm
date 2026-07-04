@@ -29,12 +29,12 @@ class AccessControlTest extends TestCase
 
     private function admin(): User
     {
-        return User::where('email', 'admin@wms.test')->firstOrFail();
+        return User::where('email', 'admin@wms.com')->firstOrFail();
     }
 
     private function staff(): User
     {
-        return User::where('email', 'abdullah@wms.test')->firstOrFail();
+        return User::where('email', 'abdullah@wms.com')->firstOrFail();
     }
 
     public function test_seeded_staff_and_admin_have_correct_roles(): void

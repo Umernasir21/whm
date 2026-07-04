@@ -116,16 +116,18 @@ class DatabaseSeeder extends Seeder
             Permission::where('name', 'like', '%.view')->pluck('id')
         );
 
-        // --- Users ---
-        // The separate administrator: delete rights + sees all activity logs.
-        User::firstOrCreate(['email' => 'admin@wms.test'],
-            ['role_id' => $roleModels['super_admin']->id, 'name' => 'System Admin', 'password' => 'Password123', 'is_active' => true]);
-
-        // The three staff users — their name is stamped on everything they touch,
-        // but they cannot delete or view the audit log.
-        foreach (['Abdullah' => 'abdullah', 'Arsum' => 'arsum', 'Jawed' => 'jawed'] as $name => $handle) {
-            User::firstOrCreate(['email' => "{$handle}@wms.test"],
-                ['role_id' => $roleModels['staff']->id, 'name' => $name, 'password' => 'Password123', 'is_active' => true]);
+        // --- Users --- (each account has its own distinct password)
+        $seedUsers = [
+            ['email' => 'admin@wms.com',    'name' => 'System Admin', 'role' => 'super_admin', 'password' => 'Admin@Wms2025'],
+            ['email' => 'abdullah@wms.com', 'name' => 'Abdullah',     'role' => 'staff',       'password' => 'Abdullah#7412'],
+            ['email' => 'arsum@wms.com',    'name' => 'Arsum',        'role' => 'staff',       'password' => 'Arsum#5309Xy'],
+            ['email' => 'jawed@wms.com',    'name' => 'Jawed',        'role' => 'staff',       'password' => 'Jawed#8621Qz'],
+        ];
+        foreach ($seedUsers as $u) {
+            User::updateOrCreate(
+                ['email' => $u['email']],
+                ['role_id' => $roleModels[$u['role']]->id, 'name' => $u['name'], 'password' => $u['password'], 'is_active' => true]
+            );
         }
 
         // --- Warehouses ---

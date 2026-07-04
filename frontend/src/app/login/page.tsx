@@ -12,8 +12,8 @@ import { useAuth } from "@/lib/auth";
 export default function LoginPage() {
   const { login, user, loading } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("admin@wms.test");
-  const [password, setPassword] = useState("Password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -92,10 +92,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-4 rounded-lg bg-white/60 p-3 text-center text-xs text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
-          <span className="font-medium text-slate-600 dark:text-slate-300">Demo logins</span> — admin@wms.test ·
-          abdullah@wms.test · arsum@wms.test · jawed@wms.test<br />password: <code>Password123</code>
-        </div>
+        <p className="mt-6 text-center text-xs text-slate-400">
+          &copy; {new Date().getFullYear()} Warehouse OS · Enterprise Edition
+        </p>
       </div>
     </div>
   );

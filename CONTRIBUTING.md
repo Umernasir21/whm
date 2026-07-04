@@ -33,10 +33,10 @@ npm run dev                      # http://localhost:3000
 
 | Email | Password | Role | Can delete? | Sees logs? |
 |---|---|---|---|---|
-| `admin@wms.test` | `Password123` | super_admin | ✅ | ✅ |
-| `abdullah@wms.test` | `Password123` | staff | ❌ | ❌ |
-| `arsum@wms.test` | `Password123` | staff | ❌ | ❌ |
-| `jawed@wms.test` | `Password123` | staff | ❌ | ❌ |
+| `admin@wms.com` | `Admin@Wms2025` | super_admin | ✅ | ✅ |
+| `abdullah@wms.com` | `Abdullah#7412` | staff | ❌ | ❌ |
+| `arsum@wms.com` | `Arsum#5309Xy` | staff | ❌ | ❌ |
+| `jawed@wms.com` | `Jawed#8621Qz` | staff | ❌ | ❌ |
 
 ## 4. Key screens
 
