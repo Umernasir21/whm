@@ -33,3 +33,6 @@ Thumbs.db
 !backend/storage/framework/sessions/.gitkeep
 !backend/storage/framework/views/.gitkeep
 !backend/bootstrap/cache/.gitkeep
+
+# TS build cache
+frontend/tsconfig.tsbuildinfo
