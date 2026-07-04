@@ -23,9 +23,12 @@ class DashboardController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // Time range (months) for the revenue/profit/AOV figures + chart window.
+        // Time range for the revenue/profit/AOV figures + chart window. Accepts
+        // explicit from/to dates (Today / This month / Custom) or falls back to
+        // a months preset.
         $months = max(1, min(24, (int) $request->integer('months', 6)));
-        $from = now()->subMonths($months)->startOfMonth()->toDateString();
+        $from = $request->query('from') ?: now()->subMonths($months)->startOfMonth()->toDateString();
+        $to = $request->query('to') ?: null;
 
         $recent = SalesOrder::with('customer')->latest()->limit(8)->get()
             ->map(fn ($o) => [
@@ -40,7 +43,8 @@ class DashboardController extends Controller
         // both MySQL and SQLite (avoids MySQL-only DATE_FORMAT).
         $trend = SalesOrder::selectRaw("SUBSTR(created_at,1,7) as month, SUM(grand_total_cents) as rev, SUM(profit_cents) as profit, COUNT(*) as orders")
             ->whereNotIn('status', ['draft', 'cancelled'])
-            ->where('created_at', '>=', now()->subMonths($months)->startOfMonth())
+            ->whereDate('created_at', '>=', $from)
+            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
             ->groupBy('month')->orderBy('month')->get()
             ->map(fn ($r) => [
                 'month' => $r->month,
@@ -80,9 +84,8 @@ class DashboardController extends Controller
                 'out_of_stock' => $outOfStock,
                 'inventory_value' => round($inventoryValue / 100, 2),
             ],
-            'profit' => $this->profit->summary(),
-            'sales' => $this->reports->salesSummary($from),
-            'range_months' => $months,
+            'profit' => $this->profit->summary($from, $to),
+            'sales' => $this->reports->salesSummary($from, $to),
             'revenue_trend' => $trend,
             'recent_orders' => $recent,
             'top_customers' => $this->reports->topCustomers(5),

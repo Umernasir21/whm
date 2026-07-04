@@ -255,18 +255,18 @@ function ConsoleInner() {
   const [refresh, setRefresh] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
-  const [dashMonths, setDashMonths] = useState(6);
+  const [dashRange, setDashRange] = useState<DashRange>(() => rangeFor("6m"));
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true });
-    const loader = isDashboard ? endpoints.v1.dashboard(dashMonths) : view?.load();
+    const loader = isDashboard ? endpoints.v1.dashboard({ from: dashRange.from, to: dashRange.to }) : view?.load();
     if (!loader) { setState({ loading: false, data: null }); return; }
     loader
       .then((d: any) => alive && setState({ loading: false, data: d }))
       .catch((e: any) => alive && setState({ loading: false, error: e.message }));
     return () => { alive = false; };
-  }, [active, refresh, dashMonths]); // eslint-disable-line
+  }, [active, refresh, dashRange]); // eslint-disable-line
 
   // Open the create form when arriving via a Quick Action (?new=1).
   useEffect(() => {
@@ -311,7 +311,7 @@ function ConsoleInner() {
         </div>
       )}
 
-      {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} months={dashMonths} onRange={setDashMonths} />}
+      {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} range={dashRange} onRange={setDashRange} />}
       {!state.loading && !state.error && !isDashboard && view && (
         <DataTable columns={view.columns} rows={rows} onEdit={view.form?.update ? setEditRow : undefined} />
       )}
@@ -371,7 +371,7 @@ function DeltaChip({ value }: { value: number | null }) {
   );
 }
 
-function Dashboard({ data, months, onRange }: { data: any; months: number; onRange: (m: number) => void }) {
+function Dashboard({ data, range, onRange }: { data: any; range: DashRange; onRange: (r: DashRange) => void }) {
   const k = data?.kpis ?? {};
   const s = data?.sales ?? {};
   const trend = (data?.revenue_trend ?? []).map((t: any) => ({ ...t, label: monthLabel(t.month) }));
@@ -406,7 +406,7 @@ function Dashboard({ data, months, onRange }: { data: any; months: number; onRan
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here&apos;s what&apos;s happening with your warehouse today.</p>
         </div>
         <div className="flex items-center gap-2">
-          <RangePicker months={months} onChange={onRange} />
+          <RangePicker range={range} onChange={onRange} />
           <QuickActionMenu />
         </div>
       </div>
@@ -592,28 +592,59 @@ function Dashboard({ data, months, onRange }: { data: any; months: number; onRan
 }
 
 /* ---- Dashboard header controls ------------------------------------------- */
-function RangePicker({ months, onChange }: { months: number; onChange: (m: number) => void }) {
+type DashRange = { key: string; label: string; from?: string; to?: string };
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+function rangeFor(key: string): DashRange {
+  const now = new Date();
+  const to = isoDate(now);
+  const start = new Date(now);
+  switch (key) {
+    case "today": return { key, label: "Today", from: to, to };
+    case "month": { const s = new Date(now.getFullYear(), now.getMonth(), 1); return { key, label: "This month", from: isoDate(s), to }; }
+    case "3m": start.setMonth(now.getMonth() - 3); return { key, label: "Last 3 months", from: isoDate(start) };
+    case "12m": start.setMonth(now.getMonth() - 12); return { key, label: "Last 12 months", from: isoDate(start) };
+    default: start.setMonth(now.getMonth() - 6); return { key: "6m", label: "Last 6 months", from: isoDate(start) };
+  }
+}
+
+function RangePicker({ range, onChange }: { range: DashRange; onChange: (r: DashRange) => void }) {
   const [open, setOpen] = useState(false);
+  const [customFrom, setCustomFrom] = useState(range.from ?? "");
+  const [customTo, setCustomTo] = useState(range.to ?? isoDate(new Date()));
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
     window.addEventListener("mousedown", h);
     return () => window.removeEventListener("mousedown", h);
   }, []);
-  const opts: [number, string][] = [[3, "Last 3 months"], [6, "Last 6 months"], [12, "Last 12 months"]];
-  const label = opts.find((o) => o[0] === months)?.[1] ?? `Last ${months} months`;
+  const presets = [["today", "Today"], ["month", "This month"], ["3m", "Last 3 months"], ["6m", "Last 6 months"], ["12m", "Last 12 months"]];
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
-        <Calendar size={15} className="text-slate-400" /> {label} <ChevronDown size={14} className="text-slate-400" />
+        <Calendar size={15} className="text-slate-400" /> {range.label} <ChevronDown size={14} className="text-slate-400" />
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-40 w-44 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1 shadow-overlay animate-scale-in dark:border-slate-800 dark:bg-slate-900">
-          {opts.map(([m, l]) => (
-            <button key={m} onClick={() => { onChange(m); setOpen(false); }} className={`flex w-full items-center justify-between px-3 py-2 text-sm transition ${m === months ? "font-medium text-indigo-600 dark:text-indigo-400" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"}`}>
-              {l} {m === months && <Check size={14} />}
+        <div className="absolute right-0 top-11 z-40 w-56 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1 shadow-overlay animate-scale-in dark:border-slate-800 dark:bg-slate-900">
+          {presets.map(([key, l]) => (
+            <button key={key} onClick={() => { onChange(rangeFor(key)); setOpen(false); }} className={`flex w-full items-center justify-between px-3 py-2 text-sm transition ${range.key === key ? "font-medium text-indigo-600 dark:text-indigo-400" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"}`}>
+              {l} {range.key === key && <Check size={14} />}
             </button>
           ))}
+          <div className="mt-1 border-t border-slate-100 px-3 py-2.5 dark:border-slate-800">
+            <div className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-400">Custom range</div>
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-700" />
+              <span className="text-slate-400">–</span>
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-700" />
+            </div>
+            <button
+              disabled={!customFrom}
+              onClick={() => { onChange({ key: "custom", label: `${customFrom} → ${customTo}`, from: customFrom, to: customTo }); setOpen(false); }}
+              className="mt-2 w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            >
+              Apply
+            </button>
+          </div>
         </div>
       )}
     </div>

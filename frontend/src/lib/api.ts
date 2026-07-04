@@ -182,7 +182,7 @@ export const endpoints = {
 
   // ---- v1 enterprise modules ----------------------------------------------
   v1: {
-    dashboard: (months?: number) => api.get(`${V1}/dashboard${qs({ months })}`),
+    dashboard: (params: { months?: number; from?: string; to?: string } = {}) => api.get(`${V1}/dashboard${qs(params)}`),
     search: (q: string) => api.get<{ results: any[] }>(`${V1}/search${qs({ q })}`),
 
     // Catalog

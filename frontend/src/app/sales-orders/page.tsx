@@ -11,16 +11,44 @@
  * Money is entered in dollars; the API stores integer cents. This screen only
  * uses endpoints already verified working end-to-end.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, X, Search, Trash2, Truck, Loader2, RefreshCw, PackageCheck,
-  UserPlus, Printer, Eye, Download,
+  UserPlus, Printer, Eye, Download, ShoppingCart, Upload, ChevronDown,
+  ChevronLeft, ChevronRight, MoreHorizontal, Filter, Check, ArrowUpDown,
+  DollarSign, CheckCircle2, Clock, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { api, endpoints, ApiError, openAuthedPdf, downloadAuthedPdf } from "@/lib/api";
 import { AppLayout } from "@/components/AppLayout";
 
 const money = (n: number) =>
   (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+const num = (n: number) => (n ?? 0).toLocaleString("en-US");
+
+/* Status pill styles for the table. */
+const SO_STATUS_STYLE: Record<string, string> = {
+  delivered: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  shipped: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  partially_shipped: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  confirmed: "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400",
+  approved: "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400",
+  packed: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400",
+  ready_to_ship: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400",
+  pending: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  returned: "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400",
+  refunded: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+  cancelled: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
+};
+const STATUS_DOT: Record<string, string> = {
+  delivered: "bg-emerald-500", shipped: "bg-blue-500", partially_shipped: "bg-blue-500",
+  confirmed: "bg-indigo-500", approved: "bg-indigo-500", packed: "bg-violet-500", ready_to_ship: "bg-violet-500",
+  pending: "bg-amber-500", draft: "bg-slate-400", returned: "bg-orange-500", refunded: "bg-rose-500", cancelled: "bg-rose-500",
+};
+const CARRIER_TINT: Record<string, string> = {
+  USPS: "text-blue-600", UPS: "text-amber-700", FedEx: "text-violet-600", DHL: "text-yellow-600", Other: "text-slate-500",
+};
 
 const SO_STATUSES = [
   "draft", "pending", "approved", "confirmed", "packed", "ready_to_ship",
@@ -73,175 +101,322 @@ function useSearch<T>(fn: (q: string) => Promise<T[]>, min = 2) {
 }
 
 /* ================================================================== */
+/* ---- helpers ------------------------------------------------------------- */
+const PENDING_STATES = new Set(["draft", "pending", "approved", "confirmed", "packed", "ready_to_ship", "partially_shipped"]);
+const pct = (series: number[]) => {
+  const v = series.filter((n) => typeof n === "number");
+  if (v.length < 2 || !v[v.length - 2]) return null;
+  return ((v[v.length - 1] - v[v.length - 2]) / Math.abs(v[v.length - 2])) * 100;
+};
+function MiniSpark({ data, color }: { data: number[]; color: string }) {
+  const d = data.map((v, i) => ({ i, v }));
+  const id = `so-${color.replace("#", "")}`;
+  if (d.length < 2) return <div className="h-8 w-16" />;
+  return (
+    <div className="h-8 w-16">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={d} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
+          <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={0.3} /><stop offset="100%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
+          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${id})`} dot={false} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+function Delta({ value }: { value: number | null }) {
+  if (value === null || !isFinite(value)) return null;
+  const up = value >= 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-2xs font-semibold ${up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+      {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{Math.abs(value).toFixed(1)}%
+    </span>
+  );
+}
+function toCsv(orders: any[]): string {
+  const head = ["SO #", "Customer", "Email", "Type", "Status", "Created By", "Tracking", "Total", "Date"];
+  const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = orders.map((o) => [
+    o.so_number, `${o.customer?.first_name ?? ""} ${o.customer?.last_name ?? ""}`.trim(), o.customer?.email ?? "",
+    o.order_type, o.status, o.created_by ?? "", o.shipment?.tracking_number ?? "",
+    o.totals?.grand_total ?? 0, o.created_at ? new Date(o.created_at).toLocaleDateString() : "",
+  ].map(esc).join(","));
+  return [head.map(esc).join(","), ...rows].join("\n");
+}
+
+/* ================================================================== */
 export default function SalesOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [all, setAll] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [filters, setFilters] = useState({ q: "", status: "", order_type: "", payment_method: "", tracking_status: "" });
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams(
-      Object.entries(filters).filter(([, v]) => v) as [string, string][]
-    ).toString();
     endpoints
-      .salesOrders(params)
-      .then((r: any) => setOrders(r.data ?? []))
+      .salesOrders("per_page=500")
+      .then((r: any) => setAll(r.data ?? []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filters]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Open the create drawer when arriving from a Quick Action (?new=1).
-  useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new")) {
-      setShowCreate(true);
-    }
   }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new")) setShowCreate(true);
+  }, []);
+
+  // KPIs + monthly series from all orders.
+  const kpi = useMemo(() => {
+    const byMonth: Record<string, { count: number; rev: number; delivered: number; pending: number }> = {};
+    for (const o of all) {
+      const m = (o.created_at ?? "").slice(0, 7);
+      const b = (byMonth[m] ??= { count: 0, rev: 0, delivered: 0, pending: 0 });
+      b.count++; b.rev += o.totals?.grand_total ?? 0;
+      if (o.status === "delivered") b.delivered++;
+      if (PENDING_STATES.has(o.status)) b.pending++;
+    }
+    const months = Object.keys(byMonth).sort();
+    const s = (f: (b: any) => number) => months.map((m) => f(byMonth[m]));
+    return {
+      total: all.length, revenue: all.reduce((a, o) => a + (o.totals?.grand_total ?? 0), 0),
+      delivered: all.filter((o) => o.status === "delivered").length,
+      pending: all.filter((o) => PENDING_STATES.has(o.status)).length,
+      countSeries: s((b) => b.count), revSeries: s((b) => b.rev),
+      delSeries: s((b) => b.delivered), penSeries: s((b) => b.pending),
+    };
+  }, [all]);
+
+  // Filter → sort → paginate.
+  const filtered = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return all.filter((o) => {
+      if (filters.status && o.status !== filters.status) return false;
+      if (filters.order_type && o.order_type !== filters.order_type) return false;
+      if (filters.payment_method && !(o.payment?.method ?? "").toLowerCase().includes(filters.payment_method.toLowerCase())) return false;
+      if (filters.tracking_status && (o.shipment?.status ?? "") !== filters.tracking_status) return false;
+      if (q) {
+        const hay = `${o.so_number} ${o.customer?.first_name ?? ""} ${o.customer?.last_name ?? ""} ${o.customer?.email ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [all, filters]);
+  const sorted = useMemo(() => {
+    const c = [...filtered].sort((a, b) => a.so_number.localeCompare(b.so_number));
+    return sortDir === "desc" ? c.reverse() : c;
+  }, [filtered, sortDir]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
+  const pageRows = sorted.slice((page - 1) * perPage, page * perPage);
+  useEffect(() => { setPage(1); }, [filters, perPage, sortDir]);
+
+  const activeChips = [
+    filters.status && { k: "status", label: `Status: ${filters.status.replace(/_/g, " ")}` },
+    filters.order_type && { k: "order_type", label: `Type: ${filters.order_type}` },
+    filters.payment_method && { k: "payment_method", label: `Payment: ${filters.payment_method}` },
+    filters.tracking_status && { k: "tracking_status", label: `Tracking: ${filters.tracking_status}` },
+  ].filter(Boolean) as { k: string; label: string }[];
+
+  const allChecked = pageRows.length > 0 && pageRows.every((o) => selected.has(o.id));
+  const toggleAll = () => setSelected((prev) => {
+    const n = new Set(prev);
+    if (allChecked) pageRows.forEach((o) => n.delete(o.id)); else pageRows.forEach((o) => n.add(o.id));
+    return n;
+  });
+  const toggleOne = (id: number) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const cards = [
+    { label: "Total Orders", value: num(kpi.total), icon: ShoppingCart, chip: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400", spark: kpi.countSeries, color: "#6366f1", delta: pct(kpi.countSeries) },
+    { label: "Total Revenue", value: money(kpi.revenue), icon: DollarSign, chip: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", spark: kpi.revSeries, color: "#10b981", delta: pct(kpi.revSeries) },
+    { label: "Delivered Orders", value: num(kpi.delivered), icon: CheckCircle2, chip: "bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400", spark: kpi.delSeries, color: "#0ea5e9", delta: pct(kpi.delSeries) },
+    { label: "Pending Orders", value: num(kpi.pending), icon: Clock, chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", spark: kpi.penSeries, color: "#f59e0b", delta: pct(kpi.penSeries) },
+  ];
 
   return (
     <AppLayout current="sales-orders">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Sales Orders</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Create, track, ship, and invoice orders.</p>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2.5 text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">
+            <ShoppingCart size={24} className="text-indigo-500" /> Sales Orders
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Create, track, ship, and invoice all your sales orders in one place.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => download(`sales-orders-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(sorted))} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
+            <Download size={15} className="text-slate-400" /> Export
+          </button>
+          <button onClick={() => alert("Bulk import is not enabled in this build.")} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
+            <Upload size={15} className="text-slate-400" /> Import
+          </button>
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:brightness-110 active:scale-[.98]">
             <Plus size={16} /> New Sales Order
           </button>
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={filters.q}
-              onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-              placeholder="Search SO# / customer…"
-              className="w-64 rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-400"
-            />
+      {/* KPI cards */}
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((c) => (
+          <div key={c.label} className="card card-hover p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className={`grid h-9 w-9 place-items-center rounded-xl ${c.chip}`}><c.icon size={17} strokeWidth={2.25} /></span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{c.label}</span>
+              </div>
+            </div>
+            <div className="mt-3 flex items-end justify-between">
+              <div>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">{c.value}</div>
+                <div className="mt-1 flex items-center gap-1.5 text-xs"><Delta value={c.delta} /><span className="text-slate-400">vs last month</span></div>
+              </div>
+              <MiniSpark data={c.spark} color={c.color} />
+            </div>
           </div>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          >
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div className="card mb-4 p-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="Search SO # / customer…" className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-400 dark:border-slate-800 dark:bg-slate-900" />
+          </div>
+          <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-900">
             <option value="">All statuses</option>
             {SO_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
           </select>
-          <select
-            value={filters.order_type}
-            onChange={(e) => setFilters((f) => ({ ...f, order_type: e.target.value }))}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">All types</option>
-            <option value="regular">Regular</option>
-            <option value="dropship">Dropship</option>
+          <select value={filters.order_type} onChange={(e) => setFilters((f) => ({ ...f, order_type: e.target.value }))} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-900">
+            <option value="">All types</option><option value="regular">Regular</option><option value="dropship">Dropship</option>
           </select>
-          <input
-            value={filters.payment_method}
-            onChange={(e) => setFilters((f) => ({ ...f, payment_method: e.target.value }))}
-            placeholder="Payment method"
-            className="w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          />
-          <select
-            value={filters.tracking_status}
-            onChange={(e) => setFilters((f) => ({ ...f, tracking_status: e.target.value }))}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">Any tracking</option>
-            <option value="pending">Pending</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
+          <input value={filters.payment_method} onChange={(e) => setFilters((f) => ({ ...f, payment_method: e.target.value }))} placeholder="Payment method" className="h-9 w-36 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-900" />
+          <select value={filters.tracking_status} onChange={(e) => setFilters((f) => ({ ...f, tracking_status: e.target.value }))} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-900">
+            <option value="">Any tracking</option><option value="pending">Pending</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option>
           </select>
-          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-            <RefreshCw size={14} /> Refresh
-          </button>
+          <button onClick={load} title="Refresh" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"><RefreshCw size={15} /></button>
         </div>
+        {activeChips.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {activeChips.map((c) => (
+              <span key={c.k} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {c.label}
+                <button onClick={() => setFilters((f) => ({ ...f, [c.k]: "" }))} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-100"><X size={12} /></button>
+              </span>
+            ))}
+            <button onClick={() => setFilters({ q: "", status: "", order_type: "", payment_method: "", tracking_status: "" })} className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">Clear all</button>
+          </div>
+        )}
+      </div>
 
-        {/* List */}
-        <div className="card overflow-hidden">
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/60 text-left text-2xs uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
               <tr>
-                <th className="px-4 py-3 font-medium">SO #</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Type</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Created by</th>
-                <th className="px-4 py-3 font-medium">Tracking</th>
-                <th className="px-4 py-3 text-right font-medium">Total</th>
-                <th className="px-4 py-3" />
+                <th className="w-10 px-4 py-2.5"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /></th>
+                <th className="px-4 py-2.5 font-semibold"><button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">SO # <ArrowUpDown size={12} /></button></th>
+                <th className="px-4 py-2.5 font-semibold">Customer</th>
+                <th className="px-4 py-2.5 font-semibold">Type</th>
+                <th className="px-4 py-2.5 font-semibold">Status</th>
+                <th className="px-4 py-2.5 font-semibold">Created By</th>
+                <th className="px-4 py-2.5 font-semibold">Tracking</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Total</th>
+                <th className="px-4 py-2.5 font-semibold">Date</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">
-                  <Loader2 className="mx-auto animate-spin" /> Loading…
-                </td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /></td></tr>
               ) : error ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-amber-700">{error}</td></tr>
-              ) : orders.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No sales orders yet.</td></tr>
-              ) : (
-                orders.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-4 py-3 font-mono text-xs">{o.so_number}</td>
-                    <td className="px-4 py-3">
-                      {o.customer ? `${o.customer.first_name} ${o.customer.last_name ?? ""}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 capitalize">{o.order_type}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize dark:bg-slate-700 dark:text-slate-200">
-                        {String(o.status).replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{o.created_by ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
-                      {o.shipment?.tracking_number ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {money(o.totals?.grand_total ?? o.grand_total_cents ?? 0)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => setEditing(o)}
-                        className="rounded-lg border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                      >
-                        Manage
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-amber-700">{error}</td></tr>
+              ) : pageRows.length === 0 ? (
+                <tr><td colSpan={10} className="px-4 py-16 text-center">
+                  <ShoppingCart size={28} className="mx-auto text-slate-300" />
+                  <div className="mt-2 text-sm font-medium text-slate-500">No sales orders found</div>
+                  <div className="text-xs text-slate-400">Try adjusting your filters or create a new order.</div>
+                </td></tr>
+              ) : pageRows.map((o) => (
+                <tr key={o.id} className={`transition-colors ${selected.has(o.id) ? "bg-indigo-50/40 dark:bg-indigo-500/5" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}>
+                  <td className="px-4 py-3"><input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleOne(o.id)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /></td>
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700 dark:text-slate-200">{o.so_number}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium tracking-tight text-slate-800 dark:text-slate-100">{o.customer ? `${o.customer.first_name} ${o.customer.last_name ?? ""}`.trim() : "—"}</div>
+                    <div className="text-xs text-slate-400">{o.customer?.email ?? ""}</div>
+                  </td>
+                  <td className="px-4 py-3"><span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">{o.order_type}</span></td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SO_STATUS_STYLE[o.status] ?? "bg-slate-100 text-slate-600"}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[o.status] ?? "bg-slate-400"}`} />{String(o.status).replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{o.created_by ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {o.shipment?.tracking_number ? (
+                      <div>
+                        <div className="font-mono text-xs text-slate-600 dark:text-slate-300">{o.shipment.tracking_number}</div>
+                        {o.shipment.carrier && <div className={`text-2xs font-semibold ${CARRIER_TINT[o.shipment.carrier] ?? "text-slate-500"}`}>{o.shipment.carrier}</div>}
+                      </div>
+                    ) : <span className="text-slate-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{money(o.totals?.grand_total ?? 0)}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-slate-600 dark:text-slate-300">{o.created_at ? new Date(o.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"}</div>
+                    <div className="text-2xs text-slate-400">{o.created_at ? new Date(o.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => setEditing(o)} title="View / manage" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"><Eye size={15} /></button>
+                      <button onClick={() => setEditing(o)} title="More" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"><MoreHorizontal size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+
+        {/* Footer */}
+        {!loading && sorted.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-sm dark:border-slate-800">
+            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+              Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, sorted.length)} of {sorted.length} results
+              <select value={perPage} onChange={(e) => setPerPage(+e.target.value)} className="ml-2 rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900">
+                {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              per page
+            </div>
+            <div className="flex items-center gap-1">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:hover:bg-slate-800"><ChevronLeft size={15} /></button>
+              {Array.from({ length: totalPages }).slice(0, 6).map((_, i) => (
+                <button key={i} onClick={() => setPage(i + 1)} className={`grid h-8 min-w-8 place-items-center rounded-lg px-2 text-sm font-medium transition ${page === i + 1 ? "bg-indigo-600 text-white" : "border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"}`}>{i + 1}</button>
+              ))}
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:hover:bg-slate-800"><ChevronRight size={15} /></button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {showCreate && (
-        <CreateDrawer onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />
-      )}
-      {editing && (
-        <EditDrawer order={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
-      )}
+      {showCreate && <CreateDrawer onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
+      {editing && <EditDrawer order={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </AppLayout>
   );
 }
 
-/* ================================================================== */
-/* Create drawer                                                       */
-/* ================================================================== */
+// CSV download helper (module scope).
+function download(filename: string, content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
 function CreateDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [customer, setCustomer] = useState<any | null>(null);
   const [orderType, setOrderType] = useState("regular");
