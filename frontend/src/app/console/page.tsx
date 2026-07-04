@@ -12,7 +12,9 @@ import {
 } from "recharts";
 import {
   ShoppingCart, PackageOpen, Boxes, Loader2, AlertTriangle,
-  TrendingUp, DollarSign, TriangleAlert, Truck, PackageX, Eye, Download, Plus, X,
+  TrendingUp, DollarSign, TriangleAlert, PackageX, Eye, Download, Plus, X,
+  MoreHorizontal, ArrowUpRight, ArrowDownRight, ArrowRight, Calendar, Zap, Activity,
+  SlidersHorizontal, PackageCheck, Package,
 } from "lucide-react";
 import { endpoints, NAV_MODULES, openAuthedPdf, downloadAuthedPdf, ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/AppLayout";
@@ -270,17 +272,19 @@ function ConsoleInner() {
 
   return (
     <AppLayout current={active}>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">{title}</h1>
-        {view?.form && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            <Plus size={16} /> New {view.form.label}
-          </button>
-        )}
-      </div>
+      {!isDashboard && (
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">{title}</h1>
+          {view?.form && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 active:scale-[.98]"
+            >
+              <Plus size={16} /> New {view.form.label}
+            </button>
+          )}
+        </div>
+      )}
 
       {showCreate && view?.form && (
         <FormModal config={view.form} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); setRefresh((n) => n + 1); }} />
@@ -310,35 +314,135 @@ function ConsoleInner() {
 }
 
 /* ---- Dashboard ----------------------------------------------------------- */
+const AVATAR_TINTS = [
+  "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+  "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+];
+const monthLabel = (ym: string) => {
+  const [y, m] = (ym ?? "").split("-");
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return m ? `${names[+m - 1]} ${y}` : ym;
+};
+const pctDelta = (series: number[]) => {
+  const vals = series.filter((v) => typeof v === "number");
+  if (vals.length < 2) return null;
+  const prev = vals[vals.length - 2], last = vals[vals.length - 1];
+  if (!prev) return null;
+  return ((last - prev) / Math.abs(prev)) * 100;
+};
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const d = data.map((v, i) => ({ i, v }));
+  const id = `sp-${color.replace("#", "")}`;
+  if (d.length < 2) return <div className="h-9 w-20" />;
+  return (
+    <div className="h-9 w-20">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={d} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
+          <defs>
+            <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${id})`} dot={false} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function DeltaChip({ value }: { value: number | null }) {
+  if (value === null || !isFinite(value)) return null;
+  const up = value >= 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-2xs font-semibold ${up ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"}`}>
+      {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{Math.abs(value).toFixed(1)}%
+    </span>
+  );
+}
+
 function Dashboard({ data }: { data: any }) {
   const k = data?.kpis ?? {};
   const s = data?.sales ?? {};
-  const trend = data?.revenue_trend ?? [];
+  const trend = (data?.revenue_trend ?? []).map((t: any) => ({ ...t, label: monthLabel(t.month) }));
   const recent = data?.recent_orders ?? [];
   const topCustomers = data?.top_customers ?? [];
+  const lowStock = data?.low_stock_items ?? [];
 
-  const cards = [
-    { label: "Revenue", value: money(s.revenue ?? 0), icon: DollarSign, chip: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", sub: `${s.orders ?? 0} orders` },
-    { label: "Profit", value: money(s.profit ?? 0), icon: TrendingUp, chip: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400", sub: `${s.gross_margin_pct ?? 0}% margin` },
-    { label: "Inventory Value", value: money(k.inventory_value ?? 0), icon: Boxes, chip: "bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400", sub: `${num(k.products ?? 0)} products` },
-    { label: "Avg Order", value: money(s.avg_order_value ?? 0), icon: ShoppingCart, chip: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400", sub: `${num(k.customers ?? 0)} customers` },
-    { label: "Sales Orders", value: num(k.sales_orders ?? 0), icon: ShoppingCart, chip: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300", sub: `${num(k.pending_shipments ?? 0)} pending` },
-    { label: "Purchase Orders", value: num(k.purchase_orders ?? 0), icon: PackageOpen, chip: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300", sub: " " },
-    { label: "Low Stock", value: num(k.low_stock ?? 0), icon: TriangleAlert, chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", sub: "at/under reorder" },
-    { label: "Out of Stock", value: num(k.out_of_stock ?? 0), icon: PackageX, chip: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", sub: `${num(k.open_returns ?? 0)} open returns` },
+  const revSeries = trend.map((t: any) => t.revenue);
+  const profitSeries = trend.map((t: any) => t.profit);
+  const orderSeries = trend.map((t: any) => t.orders);
+
+  const primary = [
+    { label: "Total Revenue", value: money(s.revenue ?? 0), icon: DollarSign, chip: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", sub: "vs last month", delta: pctDelta(revSeries), spark: revSeries, color: "#10b981" },
+    { label: "Total Profit", value: money(s.profit ?? 0), icon: TrendingUp, chip: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400", sub: `${s.gross_margin_pct ?? 0}% margin`, delta: pctDelta(profitSeries), spark: profitSeries, color: "#8b5cf6" },
+    { label: "Inventory Value", value: money(k.inventory_value ?? 0), icon: Boxes, chip: "bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400", sub: `${num(k.products ?? 0)} products`, delta: null, spark: revSeries, color: "#0ea5e9" },
+    { label: "Avg Order Value", value: money(s.avg_order_value ?? 0), icon: ShoppingCart, chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", sub: `${num(s.orders ?? 0)} orders`, delta: pctDelta(orderSeries), spark: orderSeries, color: "#f59e0b" },
+  ];
+  const secondary = [
+    { label: "Sales Orders", value: num(k.sales_orders ?? 0), icon: ShoppingCart, chip: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400", sub: `${num(k.pending_shipments ?? 0)} pending` },
+    { label: "Purchase Orders", value: num(k.purchase_orders ?? 0), icon: PackageOpen, chip: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300", sub: "in flight" },
+    { label: "Low Stock Items", value: num(k.low_stock ?? 0), icon: TriangleAlert, chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", sub: "at / under reorder" },
+    { label: "Out of Stock", value: num(k.out_of_stock ?? 0), icon: PackageX, chip: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400", sub: `${num(k.open_returns ?? 0)} open returns` },
   ];
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-        {cards.map((c) => (
-          <div key={c.label} className="card card-hover p-4">
-            <div className="flex items-start justify-between">
-              <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400">{c.label}</span>
-              <span className={`grid h-7 w-7 place-items-center rounded-lg ${c.chip}`}><c.icon size={15} strokeWidth={2.25} /></span>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">
+            Dashboard <span className="text-2xl">&#128075;</span>
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here&apos;s what&apos;s happening with your warehouse today.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
+            <Calendar size={15} className="text-slate-400" /> Last 6 months <SlidersHorizontal size={14} className="text-slate-400" />
+          </button>
+          <button className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:brightness-110 active:scale-[.98]">
+            <Zap size={15} /> Quick Action
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {primary.map((c) => (
+          <div key={c.label} className="card card-hover p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className={`grid h-9 w-9 place-items-center rounded-xl ${c.chip}`}><c.icon size={17} strokeWidth={2.25} /></span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{c.label}</span>
+              </div>
+              <button className="text-slate-300 transition hover:text-slate-500 dark:text-slate-600"><MoreHorizontal size={18} /></button>
             </div>
-            <div className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{c.value}</div>
-            <div className="mt-0.5 text-xs text-slate-400">{c.sub}</div>
+            <div className="mt-4 text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">{c.value}</div>
+            <div className="mt-3 flex items-end justify-between">
+              <div className="flex items-center gap-2 text-xs">
+                <DeltaChip value={c.delta} />
+                <span className="text-slate-400">{c.sub}</span>
+              </div>
+              <Sparkline data={c.spark} color={c.color} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {secondary.map((c) => (
+          <div key={c.label} className="card card-hover p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className={`grid h-9 w-9 place-items-center rounded-xl ${c.chip}`}><c.icon size={17} strokeWidth={2.25} /></span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{c.label}</span>
+              </div>
+              <button className="text-slate-300 transition hover:text-slate-500 dark:text-slate-600"><MoreHorizontal size={18} /></button>
+            </div>
+            <div className="mt-4 text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">{c.value}</div>
+            <div className="mt-2 text-xs text-slate-400">{c.sub}</div>
           </div>
         ))}
       </div>
@@ -346,30 +450,31 @@ function Dashboard({ data }: { data: any }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Revenue</h3>
-            <span className="text-2xs font-medium uppercase tracking-wider text-slate-400">Last 6 months</span>
+            <h3 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">Revenue Overview</h3>
+            <span className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 dark:border-slate-800 dark:text-slate-400">Last 6 months</span>
           </div>
-          <div className="h-64">
+          <div className="h-72">
             {trend.length === 0 ? (
               <div className="grid h-full place-items-center text-sm text-slate-400">No revenue data yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trend} margin={{ left: -8, right: 8, top: 8 }}>
+                <AreaChart data={trend} margin={{ left: -6, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.32} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" vertical={false} className="stroke-slate-100 dark:stroke-slate-800/70" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} dy={6} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={54} tickFormatter={(v) => `$${(Number(v) / 1000).toFixed(0)}k`} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} dy={8} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${(Number(v) / 1000).toFixed(1).replace(/\.0$/, "")}k`} />
                   <Tooltip
-                    cursor={{ stroke: "#c7d2fe", strokeWidth: 1 }}
+                    cursor={{ stroke: "#c7d2fe", strokeWidth: 1.5 }}
                     formatter={(v: any) => [money(Number(v)), "Revenue"]}
+                    labelStyle={{ color: "#64748b", fontSize: 11 }}
                     contentStyle={{ borderRadius: 10, border: "1px solid rgb(226 232 240)", boxShadow: "0 8px 24px -8px rgb(15 23 42 / 0.15)", fontSize: 12, padding: "8px 12px" }}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#rev)" activeDot={{ r: 4, strokeWidth: 2 }} animationDuration={600} />
+                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#rev)" dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }} animationDuration={700} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -377,52 +482,108 @@ function Dashboard({ data }: { data: any }) {
         </div>
 
         <div className="card p-5">
-          <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Top customers</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">Top Customers</h3>
+            <span className="text-xs font-medium text-slate-400">This month</span>
+          </div>
           {topCustomers.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400">No sales yet.</div>
+            <div className="py-10 text-center text-sm text-slate-400">No sales yet.</div>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {topCustomers.map((c: any, i: number) => (
-                <li key={i} className="flex items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <span className="flex items-center gap-2.5">
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-indigo-50 text-2xs font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">{i + 1}</span>
-                    <span className="tracking-tight">{c.name || "—"}</span>
+                <li key={i} className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-2xs font-semibold ${AVATAR_TINTS[i % AVATAR_TINTS.length]}`}>
+                    {(c.name || "?").split(" ").map((p: string) => p[0]).slice(0, 2).join("").toUpperCase()}
                   </span>
-                  <span className="font-semibold tabular-nums">{money(c.revenue)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium tracking-tight text-slate-800 dark:text-slate-100">{c.name || "—"}</span>
+                    <span className="block text-xs text-slate-400">{num(c.orders)} orders</span>
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums">{money(c.revenue)}</span>
                 </li>
               ))}
             </ul>
           )}
+          <button className="mt-3 flex w-full items-center justify-center gap-1 text-sm font-medium text-indigo-600 transition hover:gap-1.5 dark:text-indigo-400">
+            View all customers <ArrowRight size={14} />
+          </button>
         </div>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <Truck size={15} className="text-slate-400" />
-          <h3 className="text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Recent orders</h3>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-            <tr>
-              <th className="px-5 py-3 font-medium">Order #</th>
-              <th className="px-5 py-3 font-medium">Customer</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 text-right font-medium">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Recent Sales Orders</h3>
+            <span className="cursor-pointer text-xs font-medium text-indigo-600 dark:text-indigo-400">View all</span>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {recent.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No orders yet.</td></tr>
-            ) : recent.map((o: any, i: number) => (
-              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                <td className="px-5 py-3 font-mono text-xs">{o.so_number}</td>
-                <td className="px-5 py-3">{o.customer || "—"}</td>
-                <td className="px-5 py-3"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusPill(o.status)}`}>{String(o.status).replace(/_/g, " ")}</span></td>
-                <td className="px-5 py-3 text-right tabular-nums">{money(o.total)}</td>
-              </tr>
+              <div className="px-5 py-8 text-center text-sm text-slate-400">No orders yet.</div>
+            ) : recent.slice(0, 5).map((o: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-5 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-medium text-indigo-600 dark:text-indigo-400">{o.so_number}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-2xs font-medium capitalize ${statusPill(o.status)}`}>{String(o.status).replace(/_/g, " ")}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-slate-400">{o.customer || "—"}</div>
+                </div>
+                <div className="text-right text-sm font-semibold tabular-nums">{money(o.total)}</div>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Low Stock Alerts</h3>
+            <span className="cursor-pointer text-xs font-medium text-indigo-600 dark:text-indigo-400">View all</span>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {lowStock.length === 0 ? (
+              <div className="flex flex-col items-center gap-1 px-5 py-8 text-center text-sm text-slate-400">
+                <PackageCheck size={22} className="text-emerald-400" /> All stock levels healthy.
+              </div>
+            ) : lowStock.map((p: any, i: number) => {
+              const pct = p.reorder_point > 0 ? Math.min(100, Math.round((p.on_hand / p.reorder_point) * 100)) : 0;
+              return (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800"><Package size={16} /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium tracking-tight text-slate-800 dark:text-slate-100">{p.name}</div>
+                    <div className="text-2xs text-slate-400">SKU: {p.sku}</div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div className={`h-full rounded-full ${pct <= 25 ? "bg-rose-500" : "bg-amber-500"}`} style={{ width: `${Math.max(6, pct)}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold tabular-nums text-slate-500">{p.on_hand}/{p.reorder_point}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+            <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">Activity Feed</h3>
+            <span className="cursor-pointer text-xs font-medium text-indigo-600 dark:text-indigo-400">View all</span>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {recent.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-slate-400">No recent activity.</div>
+            ) : recent.slice(0, 5).map((o: any, i: number) => (
+              <div key={i} className="flex items-start gap-3 px-5 py-3">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400"><Activity size={15} /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    Sales Order <span className="font-medium text-indigo-600 dark:text-indigo-400">{o.so_number}</span> is <span className="capitalize">{String(o.status).replace(/_/g, " ")}</span>
+                  </div>
+                  <div className="mt-0.5 text-2xs text-slate-400">{o.created_at ? new Date(o.created_at).toLocaleDateString() : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

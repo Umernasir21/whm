@@ -33,10 +33,16 @@ class DashboardController extends Controller
 
         // Cross-database month bucket: SUBSTR(datetime,1,7) → 'YYYY-MM' works on
         // both MySQL and SQLite (avoids MySQL-only DATE_FORMAT).
-        $trend = SalesOrder::selectRaw("SUBSTR(created_at,1,7) as month, SUM(grand_total_cents) as cents")
+        $trend = SalesOrder::selectRaw("SUBSTR(created_at,1,7) as month, SUM(grand_total_cents) as rev, SUM(profit_cents) as profit, COUNT(*) as orders")
+            ->whereNotIn('status', ['draft', 'cancelled'])
             ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
             ->groupBy('month')->orderBy('month')->get()
-            ->map(fn ($r) => ['month' => $r->month, 'revenue' => round($r->cents / 100, 2)]);
+            ->map(fn ($r) => [
+                'month' => $r->month,
+                'revenue' => round($r->rev / 100, 2),
+                'profit' => round($r->profit / 100, 2),
+                'orders' => (int) $r->orders,
+            ]);
 
         $inventoryValue = (int) InventoryLevel::selectRaw('SUM(quantity_on_hand * avg_cost_cents) as v')->value('v');
 
@@ -49,6 +55,13 @@ class DashboardController extends Controller
 
         $outOfStock = Product::where('is_active', true)
             ->whereRaw("{$onHandSub} = 0")->count();
+
+        $lowStockItems = Product::where('reorder_point', '>', 0)
+            ->whereRaw("{$onHandSub} <= products.reorder_point")
+            ->selectRaw("id, sku, name, reorder_point, {$onHandSub} as on_hand")
+            ->orderByRaw("{$onHandSub} ASC")
+            ->limit(4)->get()
+            ->map(fn ($p) => ['sku' => $p->sku, 'name' => $p->name, 'on_hand' => (int) $p->on_hand, 'reorder_point' => (int) $p->reorder_point]);
 
         return response()->json([
             'kpis' => [
@@ -67,6 +80,7 @@ class DashboardController extends Controller
             'revenue_trend' => $trend,
             'recent_orders' => $recent,
             'top_customers' => $this->reports->topCustomers(5),
+            'low_stock_items' => $lowStockItems,
         ]);
     }
 }
