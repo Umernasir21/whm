@@ -39,17 +39,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-indigo-600 text-white">
+    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-slate-100 p-4 dark:bg-slate-950">
+      {/* Ambient background */}
+      <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-indigo-400/20 blur-3xl dark:bg-indigo-600/15" />
+      <div className="relative w-full max-w-sm animate-scale-in">
+        <div className="mb-7 flex flex-col items-center gap-2.5">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-elevated">
             <Warehouse size={24} />
           </div>
-          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Warehouse Management System</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Sign in to continue</p>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">Warehouse OS</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Sign in to your workspace</p>
         </div>
 
-        <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <form onSubmit={submit} className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-elevated dark:border-slate-800 dark:bg-slate-900">
           <label className="mb-3 block text-sm">
             <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Email</span>
             <input

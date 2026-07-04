@@ -58,7 +58,7 @@ export default function ActivityLogsPage() {
         <div className="mb-5 flex items-center gap-2">
           <ScrollText size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold">Activity Logs</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Activity Logs</h1>
             <p className="text-sm text-slate-500">Who created, updated, or deleted what — full audit trail.</p>
           </div>
         </div>
@@ -81,9 +81,9 @@ export default function ActivityLogsPage() {
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+            <thead className="border-b border-slate-100 bg-slate-50/60 text-left text-2xs uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">When</th>
                 <th className="px-4 py-3 font-medium">User</th>

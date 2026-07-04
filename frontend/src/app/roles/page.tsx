@@ -48,7 +48,7 @@ export default function RolesPage() {
         <div className="mb-5 flex items-center gap-2">
           <ShieldCheck size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold">Roles &amp; Permissions</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Roles &amp; Permissions</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Grant or revoke what each role can do.</p>
           </div>
         </div>
@@ -97,7 +97,7 @@ function RoleCard({ role, groups, onSaved }: { role: Role; groups: Record<string
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="card p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">

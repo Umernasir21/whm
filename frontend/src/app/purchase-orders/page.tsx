@@ -54,7 +54,7 @@ export default function PurchaseOrdersPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Purchase Orders</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Purchase Orders</h1>
             <p className="text-sm text-slate-500">Track purchased inventory — product, condition, qty, tax, cost.</p>
           </div>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
@@ -77,9 +77,9 @@ export default function PurchaseOrdersPage() {
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+            <thead className="border-b border-slate-100 bg-slate-50/60 text-left text-2xs uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">PO #</th>
                 <th className="px-4 py-3 font-medium">Vendor</th>
@@ -167,7 +167,7 @@ function CreatePO({ onClose, onCreated }: { onClose: () => void; onCreated: () =
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div className="h-full w-full max-w-4xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+      <div className="h-full w-full max-w-4xl overflow-y-auto bg-white p-6 shadow-overlay animate-slide-in-right dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold"><PackageCheck size={18} className="text-indigo-600" /> New Purchase Order</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>

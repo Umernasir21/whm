@@ -164,7 +164,7 @@ export default function ReportsPage() {
         <div className="mb-5 flex items-center gap-2">
           <BarChart3 size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold">Reports</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Sales, purchases, inventory and more — with CSV export.</p>
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function ReportsPage() {
             {summary && (
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
                 {summary.map((s) => (
-                  <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <div key={s.label} className="card p-4">
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{s.label}</div>
                     <div className="mt-1 text-lg font-semibold tabular-nums">{s.value}</div>
                   </div>
@@ -240,9 +240,9 @@ export default function ReportsPage() {
             )}
 
             {table && (
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+              <div className="card overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                  <thead className="border-b border-slate-100 bg-slate-50/60 text-left text-2xs uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                     <tr>{table.columns.map((c) => <th key={c.label} className="px-4 py-3 font-medium">{c.label}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
