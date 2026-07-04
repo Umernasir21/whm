@@ -167,6 +167,7 @@ export const endpoints = {
   dashboard: () => api.get<DashboardData>("/dashboard"),
   customers: (q = "") => api.get<Paginated<Customer>>(`/customers?q=${encodeURIComponent(q)}`),
   createCustomer: (data: unknown) => api.post<{ data: Customer }>("/customers", data),
+  updateCustomer: (id: number, data: unknown) => api.put<{ data: Customer }>(`/v1/customers/${id}`, data),
   salesOrders: (params = "") => api.get<Paginated<SalesOrder>>(`/sales-orders?${params}`),
   salesOrder: (id: number) => api.get<{ data: SalesOrder }>(`/sales-orders/${id}`),
   createSalesOrder: (data: unknown) => api.post<{ data: SalesOrder }>("/sales-orders", data),
@@ -192,15 +193,18 @@ export const endpoints = {
     deleteProduct: (id: number) => api.del(`${V1}/products/${id}`),
     categories: () => api.get(`${V1}/categories`),
     createCategory: (d: unknown) => api.post(`${V1}/categories`, d),
+    updateCategory: (id: number, d: unknown) => api.put(`${V1}/categories/${id}`, d),
 
     // Vendors
     vendors: (params = {}) => api.get(`${V1}/vendors${qs(params)}`),
+    vendor: (id: number) => api.get(`${V1}/vendors/${id}`),
     createVendor: (d: unknown) => api.post(`${V1}/vendors`, d),
     updateVendor: (id: number, d: unknown) => api.put(`${V1}/vendors/${id}`, d),
 
     // Warehouses & inventory
     warehouses: () => api.get(`${V1}/warehouses`),
     createWarehouse: (d: unknown) => api.post(`${V1}/warehouses`, d),
+    updateWarehouse: (id: number, d: unknown) => api.put(`${V1}/warehouses/${id}`, d),
     addLocation: (whId: number, d: unknown) => api.post(`${V1}/warehouses/${whId}/locations`, d),
     inventory: (params = {}) => api.get(`${V1}/inventory${qs(params)}`),
     lowStock: () => api.get(`${V1}/inventory/low-stock`),

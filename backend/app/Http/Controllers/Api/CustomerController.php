@@ -33,4 +33,26 @@ class CustomerController extends Controller
     {
         return new CustomerResource($customer);
     }
+
+    public function update(Request $request, Customer $customer)
+    {
+        $data = $request->validate([
+            'first_name' => ['sometimes', 'string', 'max:96'],
+            'last_name' => ['nullable', 'string', 'max:96'],
+            'company_name' => ['nullable', 'string', 'max:191'],
+            'email' => ['sometimes', 'email', 'max:191'],
+            'phone' => ['nullable', 'string', 'max:48'],
+            'buyer_id' => ['nullable', 'string', 'max:96'],
+            'shipping_name' => ['nullable', 'string', 'max:191'],
+            'shipping_address1' => ['sometimes', 'string', 'max:191'],
+            'shipping_address2' => ['nullable', 'string', 'max:191'],
+            'shipping_city' => ['sometimes', 'string', 'max:96'],
+            'shipping_state' => ['sometimes', 'string', 'max:96'],
+            'shipping_zip' => ['sometimes', 'string', 'max:24'],
+            'shipping_country' => ['sometimes', 'string', 'max:96'],
+        ]);
+        $customer->update($data);
+
+        return new CustomerResource($customer);
+    }
 }

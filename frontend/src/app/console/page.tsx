@@ -22,8 +22,15 @@ const num = (n: number) => (n ?? 0).toLocaleString("en-US");
 
 type Column = { key: string; label: string; render?: (row: any) => React.ReactNode };
 type Field = { key: string; label: string; type?: "text" | "number" | "email"; required?: boolean };
-type CreateConfig = { label: string; fields: Field[]; submit: (data: any) => Promise<any> };
-type ModuleView = { load: () => Promise<any>; rows: (r: any) => any[]; columns: Column[]; create?: CreateConfig };
+type FormConfig = {
+  label: string;
+  fields: Field[];
+  create: (data: any) => Promise<any>;
+  update?: (id: number, data: any) => Promise<any>;
+  // Map a list row to the flat field values for the edit form (defaults to row).
+  toForm?: (row: any) => Record<string, any>;
+};
+type ModuleView = { load: () => Promise<any>; rows: (r: any) => any[]; columns: Column[]; form?: FormConfig };
 
 const VIEWS: Record<string, ModuleView> = {
   products: {
@@ -35,7 +42,7 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "on_hand", label: "On Hand", render: (p) => num(p.on_hand ?? 0) },
       { key: "default_price_cents", label: "Price", render: (p) => money(p.default_price_cents) },
     ],
-    create: {
+    form: {
       label: "Product",
       fields: [
         { key: "name", label: "Name", required: true },
@@ -44,7 +51,13 @@ const VIEWS: Record<string, ModuleView> = {
         { key: "default_cost_cents", label: "Cost", type: "number" },
         { key: "reorder_point", label: "Reorder point", type: "number" },
       ],
-      submit: (d) => endpoints.v1.createProduct(d),
+      create: (d) => endpoints.v1.createProduct(d),
+      update: (id, d) => endpoints.v1.updateProduct(id, d),
+      toForm: (r) => ({
+        name: r.name, sku: r.sku,
+        default_price_cents: r.default_price_cents, default_cost_cents: r.default_cost_cents,
+        reorder_point: r.reorder_point,
+      }),
     },
   },
   inventory: {
@@ -66,13 +79,14 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "parent", label: "Parent", render: (c) => c.parent?.name ?? "—" },
       { key: "products_count", label: "Products" },
     ],
-    create: {
+    form: {
       label: "Category",
       fields: [
         { key: "name", label: "Name", required: true },
         { key: "description", label: "Description" },
       ],
-      submit: (d) => endpoints.v1.createCategory(d),
+      create: (d) => endpoints.v1.createCategory(d),
+      update: (id, d) => endpoints.v1.updateCategory(id, d),
     },
   },
   customers: {
@@ -84,7 +98,7 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "company_name", label: "Company", render: (c) => c.company_name || "—" },
       { key: "city", label: "City", render: (c) => c.shipping?.city ?? "—" },
     ],
-    create: {
+    form: {
       label: "Customer",
       fields: [
         { key: "first_name", label: "First name", required: true },
@@ -98,7 +112,15 @@ const VIEWS: Record<string, ModuleView> = {
         { key: "shipping_zip", label: "Zip", required: true },
         { key: "shipping_country", label: "Country", required: true },
       ],
-      submit: (d) => endpoints.createCustomer(d),
+      create: (d) => endpoints.createCustomer(d),
+      update: (id, d) => endpoints.updateCustomer(id, d),
+      toForm: (r) => ({
+        first_name: r.first_name, last_name: r.last_name, email: r.email,
+        company_name: r.company_name, phone: r.phone,
+        shipping_address1: r.shipping?.address1, shipping_city: r.shipping?.city,
+        shipping_state: r.shipping?.state, shipping_zip: r.shipping?.zip,
+        shipping_country: r.shipping?.country,
+      }),
     },
   },
   invoices: {
@@ -129,7 +151,7 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "purchase_orders_count", label: "POs" },
       { key: "total_spend", label: "Spend", render: (v) => money(v.total_spend ?? 0) },
     ],
-    create: {
+    form: {
       label: "Vendor",
       fields: [
         { key: "name", label: "Vendor name", required: true },
@@ -140,7 +162,8 @@ const VIEWS: Record<string, ModuleView> = {
         { key: "state", label: "State" },
         { key: "country", label: "Country" },
       ],
-      submit: (d) => endpoints.v1.createVendor(d),
+      create: (d) => endpoints.v1.createVendor(d),
+      update: (id, d) => endpoints.v1.updateVendor(id, d),
     },
   },
   warehouses: {
@@ -229,6 +252,7 @@ function ConsoleInner() {
   const [state, setState] = useState<{ loading: boolean; error?: string; data?: any }>({ loading: true });
   const [refresh, setRefresh] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
+  const [editRow, setEditRow] = useState<any | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -248,18 +272,21 @@ function ConsoleInner() {
     <AppLayout current={active}>
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{title}</h1>
-        {view?.create && (
+        {view?.form && (
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
-            <Plus size={16} /> New {view.create.label}
+            <Plus size={16} /> New {view.form.label}
           </button>
         )}
       </div>
 
-      {showCreate && view?.create && (
-        <CreateModal config={view.create} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); setRefresh((n) => n + 1); }} />
+      {showCreate && view?.form && (
+        <FormModal config={view.form} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); setRefresh((n) => n + 1); }} />
+      )}
+      {editRow && view?.form && (
+        <FormModal config={view.form} row={editRow} onClose={() => setEditRow(null)} onSaved={() => { setEditRow(null); setRefresh((n) => n + 1); }} />
       )}
 
       {state.loading && (
@@ -279,7 +306,9 @@ function ConsoleInner() {
       )}
 
       {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} />}
-      {!state.loading && !state.error && !isDashboard && view && <DataTable columns={view.columns} rows={rows} />}
+      {!state.loading && !state.error && !isDashboard && view && (
+        <DataTable columns={view.columns} rows={rows} onEdit={view.form?.update ? setEditRow : undefined} />
+      )}
     </AppLayout>
   );
 }
@@ -397,30 +426,83 @@ function Dashboard({ data }: { data: any }) {
 }
 
 /* ---- Generic data table -------------------------------------------------- */
-function DataTable({ columns, rows }: { columns: Column[]; rows: any[] }) {
+function DataTable({ columns, rows, onEdit }: { columns: Column[]; rows: any[]; onEdit?: (row: any) => void }) {
+  const [view, setView] = useState<any | null>(null);
+  const colCount = columns.length + (onEdit ? 1 : 0);
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-          <tr>{columns.map((c) => <th key={c.key} className="px-4 py-3 font-medium">{c.label}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {rows.length === 0 ? (
-            <tr><td colSpan={columns.length} className="px-4 py-10 text-center text-slate-400">No records yet.</td></tr>
-          ) : rows.map((row, i) => (
-            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              {columns.map((c) => <td key={c.key} className="px-4 py-3">{c.render ? c.render(row) : String(row[c.key] ?? "—")}</td>)}
+    <>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+            <tr>
+              {columns.map((c) => <th key={c.key} className="px-4 py-3 font-medium">{c.label}</th>)}
+              {onEdit && <th className="px-4 py-3 text-right font-medium">Actions</th>}
             </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rows.length === 0 ? (
+              <tr><td colSpan={colCount} className="px-4 py-10 text-center text-slate-400">No records yet.</td></tr>
+            ) : rows.map((row, i) => (
+              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                {columns.map((c) => <td key={c.key} className="px-4 py-3">{c.render ? c.render(row) : String(row[c.key] ?? "—")}</td>)}
+                {onEdit && (
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-3 text-xs">
+                      <button onClick={() => setView(row)} className="text-slate-500 hover:underline dark:text-slate-400">View</button>
+                      <button onClick={() => onEdit(row)} className="text-indigo-600 hover:underline dark:text-indigo-400">Edit</button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {view && <ViewModal columns={columns} row={view} onClose={() => setView(null)} onEdit={onEdit ? () => { onEdit(view); setView(null); } : undefined} />}
+    </>
+  );
+}
+
+/* ---- Read-only detail modal ---------------------------------------------- */
+function ViewModal({ columns, row, onClose, onEdit }: { columns: Column[]; row: any; onClose: () => void; onEdit?: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
+          <h3 className="font-semibold">Details</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18} /></button>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {columns.map((c) => (
+            <div key={c.key} className="flex justify-between gap-4 px-5 py-2.5 text-sm">
+              <span className="text-slate-400">{c.label}</span>
+              <span className="text-right">{c.render ? c.render(row) : String(row[c.key] ?? "—")}</span>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+        {onEdit && (
+          <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+            <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">Close</button>
+            <button onClick={onEdit} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Edit</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/* ---- Generic create modal ------------------------------------------------ */
-function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onClose: () => void; onCreated: () => void }) {
-  const [values, setValues] = useState<Record<string, string>>({});
+/* ---- Generic create / edit modal ----------------------------------------- */
+function FormModal({ config, row, onClose, onSaved }: { config: FormConfig; row?: any; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!row;
+  const initial = useMemo(() => {
+    if (!row) return {};
+    const src = config.toForm ? config.toForm(row) : row;
+    const out: Record<string, string> = {};
+    for (const f of config.fields) out[f.key] = src[f.key] != null ? String(src[f.key]) : "";
+    return out;
+  }, [row]); // eslint-disable-line
+
+  const [values, setValues] = useState<Record<string, string>>(initial);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<Record<string, string[]>>();
 
@@ -428,7 +510,6 @@ function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onC
 
   async function submit() {
     setSaving(true); setErr(undefined);
-    // Build payload: drop blanks, coerce number fields.
     const payload: Record<string, any> = {};
     for (const f of config.fields) {
       const raw = values[f.key];
@@ -436,8 +517,9 @@ function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onC
       payload[f.key] = f.type === "number" ? Number(raw) : raw;
     }
     try {
-      await config.submit(payload);
-      onCreated();
+      if (isEdit && config.update) await config.update(row.id, payload);
+      else await config.create(payload);
+      onSaved();
     } catch (e) {
       setErr(e instanceof ApiError ? (e.errors ?? { _: [e.message] }) : { _: ["Failed to save."] });
     } finally { setSaving(false); }
@@ -447,7 +529,9 @@ function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onC
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onClick={onClose}>
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 font-semibold"><Plus size={18} className="text-indigo-600" /> New {config.label}</h3>
+          <h3 className="flex items-center gap-2 font-semibold">
+            <Plus size={18} className="text-indigo-600" /> {isEdit ? `Edit ${config.label}` : `New ${config.label}`}
+          </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X size={18} /></button>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -468,7 +552,7 @@ function CreateModal({ config, onClose, onCreated }: { config: CreateConfig; onC
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">Cancel</button>
           <button onClick={submit} disabled={saving} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
-            {saving && <Loader2 className="animate-spin" size={15} />} Create
+            {saving && <Loader2 className="animate-spin" size={15} />} {isEdit ? "Save" : "Create"}
           </button>
         </div>
       </div>
