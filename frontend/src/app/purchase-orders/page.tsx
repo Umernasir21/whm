@@ -49,6 +49,13 @@ export default function PurchaseOrdersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Open the create drawer when arriving from a Quick Action (?new=1).
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new")) {
+      setShowCreate(true);
+    }
+  }, []);
+
   return (
     <AppLayout current="purchase-orders">
       <div className="mx-auto max-w-6xl">

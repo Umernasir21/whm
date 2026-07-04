@@ -5,8 +5,8 @@
  * Sidebar), so navigation is consistent with the rest of the app. All data
  * comes from the Laravel API.
  */
-import React, { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -14,7 +14,7 @@ import {
   ShoppingCart, PackageOpen, Boxes, Loader2, AlertTriangle,
   TrendingUp, DollarSign, TriangleAlert, PackageX, Eye, Download, Plus, X,
   MoreHorizontal, ArrowUpRight, ArrowDownRight, ArrowRight, Calendar, Zap, Activity,
-  SlidersHorizontal, PackageCheck, Package,
+  PackageCheck, Package, ChevronDown, Check, Users, Factory,
 } from "lucide-react";
 import { endpoints, NAV_MODULES, openAuthedPdf, downloadAuthedPdf, ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/AppLayout";
@@ -255,17 +255,23 @@ function ConsoleInner() {
   const [refresh, setRefresh] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
+  const [dashMonths, setDashMonths] = useState(6);
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true });
-    const loader = isDashboard ? endpoints.v1.dashboard() : view?.load();
+    const loader = isDashboard ? endpoints.v1.dashboard(dashMonths) : view?.load();
     if (!loader) { setState({ loading: false, data: null }); return; }
     loader
       .then((d: any) => alive && setState({ loading: false, data: d }))
       .catch((e: any) => alive && setState({ loading: false, error: e.message }));
     return () => { alive = false; };
-  }, [active, refresh]); // eslint-disable-line
+  }, [active, refresh, dashMonths]); // eslint-disable-line
+
+  // Open the create form when arriving via a Quick Action (?new=1).
+  useEffect(() => {
+    if (params.get("new") && VIEWS[active]?.form) setShowCreate(true);
+  }, [active]); // eslint-disable-line
 
   const rows = useMemo(() => (view && state.data ? view.rows(state.data) : []), [view, state.data]);
   const title = NAV_MODULES.find((m) => m.key === active)?.label ?? "Dashboard";
@@ -305,7 +311,7 @@ function ConsoleInner() {
         </div>
       )}
 
-      {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} />}
+      {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} months={dashMonths} onRange={setDashMonths} />}
       {!state.loading && !state.error && !isDashboard && view && (
         <DataTable columns={view.columns} rows={rows} onEdit={view.form?.update ? setEditRow : undefined} />
       )}
@@ -365,7 +371,7 @@ function DeltaChip({ value }: { value: number | null }) {
   );
 }
 
-function Dashboard({ data }: { data: any }) {
+function Dashboard({ data, months, onRange }: { data: any; months: number; onRange: (m: number) => void }) {
   const k = data?.kpis ?? {};
   const s = data?.sales ?? {};
   const trend = (data?.revenue_trend ?? []).map((t: any) => ({ ...t, label: monthLabel(t.month) }));
@@ -400,12 +406,8 @@ function Dashboard({ data }: { data: any }) {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here&apos;s what&apos;s happening with your warehouse today.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
-            <Calendar size={15} className="text-slate-400" /> Last 6 months <SlidersHorizontal size={14} className="text-slate-400" />
-          </button>
-          <button className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:brightness-110 active:scale-[.98]">
-            <Zap size={15} /> Quick Action
-          </button>
+          <RangePicker months={months} onChange={onRange} />
+          <QuickActionMenu />
         </div>
       </div>
 
@@ -585,6 +587,69 @@ function Dashboard({ data }: { data: any }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---- Dashboard header controls ------------------------------------------- */
+function RangePicker({ months, onChange }: { months: number; onChange: (m: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, []);
+  const opts: [number, string][] = [[3, "Last 3 months"], [6, "Last 6 months"], [12, "Last 12 months"]];
+  const label = opts.find((o) => o[0] === months)?.[1] ?? `Last ${months} months`;
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">
+        <Calendar size={15} className="text-slate-400" /> {label} <ChevronDown size={14} className="text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 z-40 w-44 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1 shadow-overlay animate-scale-in dark:border-slate-800 dark:bg-slate-900">
+          {opts.map(([m, l]) => (
+            <button key={m} onClick={() => { onChange(m); setOpen(false); }} className={`flex w-full items-center justify-between px-3 py-2 text-sm transition ${m === months ? "font-medium text-indigo-600 dark:text-indigo-400" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"}`}>
+              {l} {m === months && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuickActionMenu() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, []);
+  const items: { label: string; icon: any; to: string }[] = [
+    { label: "New Sales Order", icon: ShoppingCart, to: "/sales-orders?new=1" },
+    { label: "New Purchase Order", icon: PackageOpen, to: "/purchase-orders?new=1" },
+    { label: "New Customer", icon: Users, to: "/console?m=customers&new=1" },
+    { label: "New Product", icon: Package, to: "/console?m=products&new=1" },
+    { label: "New Vendor", icon: Factory, to: "/console?m=vendors&new=1" },
+  ];
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:brightness-110 active:scale-[.98]">
+        <Zap size={15} /> Quick Action <ChevronDown size={14} className="opacity-80" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1 shadow-overlay animate-scale-in dark:border-slate-800 dark:bg-slate-900">
+          {items.map((it) => (
+            <button key={it.label} onClick={() => { setOpen(false); router.push(it.to); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">
+              <it.icon size={15} className="text-slate-400" /> {it.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

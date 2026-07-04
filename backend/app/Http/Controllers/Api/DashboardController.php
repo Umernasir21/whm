@@ -12,6 +12,7 @@ use App\Models\SalesOrder;
 use App\Services\ProfitService;
 use App\Services\ReportService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
@@ -20,8 +21,12 @@ class DashboardController extends Controller
         private ReportService $reports,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        // Time range (months) for the revenue/profit/AOV figures + chart window.
+        $months = max(1, min(24, (int) $request->integer('months', 6)));
+        $from = now()->subMonths($months)->startOfMonth()->toDateString();
+
         $recent = SalesOrder::with('customer')->latest()->limit(8)->get()
             ->map(fn ($o) => [
                 'so_number' => $o->so_number,
@@ -35,7 +40,7 @@ class DashboardController extends Controller
         // both MySQL and SQLite (avoids MySQL-only DATE_FORMAT).
         $trend = SalesOrder::selectRaw("SUBSTR(created_at,1,7) as month, SUM(grand_total_cents) as rev, SUM(profit_cents) as profit, COUNT(*) as orders")
             ->whereNotIn('status', ['draft', 'cancelled'])
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('created_at', '>=', now()->subMonths($months)->startOfMonth())
             ->groupBy('month')->orderBy('month')->get()
             ->map(fn ($r) => [
                 'month' => $r->month,
@@ -76,7 +81,8 @@ class DashboardController extends Controller
                 'inventory_value' => round($inventoryValue / 100, 2),
             ],
             'profit' => $this->profit->summary(),
-            'sales' => $this->reports->salesSummary(),
+            'sales' => $this->reports->salesSummary($from),
+            'range_months' => $months,
             'revenue_trend' => $trend,
             'recent_orders' => $recent,
             'top_customers' => $this->reports->topCustomers(5),
