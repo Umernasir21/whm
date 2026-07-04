@@ -4,3 +4,18 @@
 
 :root { color-scheme: light dark; }
 body { font-feature-settings: "tnum"; }
+
+/* Dark-mode defaults for form controls so inputs/selects/textareas don't render
+   with light backgrounds regardless of per-element utility classes. */
+@layer base {
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .dark select,
+  .dark textarea {
+    background-color: rgb(30 41 59);   /* slate-800 */
+    border-color: rgb(51 65 85);       /* slate-700 */
+    color: rgb(241 245 249);           /* slate-100 */
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder { color: rgb(100 116 139); } /* slate-500 */
+  .dark option { background-color: rgb(30 41 59); color: rgb(241 245 249); }
+}

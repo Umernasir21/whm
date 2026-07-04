@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { ScrollText, Loader2, ShieldAlert, RefreshCw } from "lucide-react";
 import { endpoints, ApiError } from "@/lib/api";
-import { AppBar } from "@/components/AppBar";
+import { AppLayout } from "@/components/AppLayout";
 
 const ACTION_STYLE: Record<string, string> = {
   created: "bg-emerald-100 text-emerald-700",
@@ -53,9 +53,8 @@ export default function ActivityLogsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <AppLayout current="activity-logs">
       <div className="mx-auto max-w-6xl">
-        <AppBar />
         <div className="mb-5 flex items-center gap-2">
           <ScrollText size={20} className="text-indigo-600" />
           <div>
@@ -77,7 +76,7 @@ export default function ActivityLogsPage() {
             placeholder="Filter by type (SalesOrder…)"
             className="w-56 rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
-          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-white">
+          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -103,7 +102,7 @@ export default function ActivityLogsPage() {
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No activity recorded yet.</td></tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="align-top hover:bg-slate-50">
+                  <tr key={r.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(r.at).toLocaleString()}</td>
                     <td className="px-4 py-3 font-medium">{r.user}</td>
                     <td className="px-4 py-3">
@@ -128,6 +127,6 @@ export default function ActivityLogsPage() {
           </table>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

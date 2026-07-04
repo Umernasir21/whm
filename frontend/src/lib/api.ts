@@ -60,6 +60,45 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Open an authenticated PDF (invoice / label). The download routes require the
+ * Bearer token, which a plain <a href> / new tab can't send — so we fetch the
+ * bytes with auth and open them as an object URL.
+ */
+export async function openAuthedPdf(urlOrPath: string): Promise<void> {
+  const url = urlOrPath.startsWith("http") ? urlOrPath : `${BASE}${urlOrPath}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/pdf",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) throw new ApiError("Could not open the document.", res.status);
+  const blobUrl = URL.createObjectURL(await res.blob());
+  window.open(blobUrl, "_blank");
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
+/** Fetch an authenticated PDF and save it to disk with a filename. */
+export async function downloadAuthedPdf(urlOrPath: string, filename: string): Promise<void> {
+  const url = urlOrPath.startsWith("http") ? urlOrPath : `${BASE}${urlOrPath}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/pdf",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) throw new ApiError("Could not download the document.", res.status);
+  const blobUrl = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export const api = {
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, b?: unknown) => request<T>("POST", p, b),

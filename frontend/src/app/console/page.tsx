@@ -1,39 +1,25 @@
 "use client";
 /**
- * Enterprise Console — live, API-driven multi-module shell with a rich dashboard
- * (KPI cards, revenue chart, top customers), light/dark themes, and a generic
- * data table for every master module. All data comes from the Laravel API.
+ * Enterprise Console — the dashboard + a live table for every master module.
+ * The active module is driven by the ?m= query param (set by the shared
+ * Sidebar), so navigation is consistent with the rest of the app. All data
+ * comes from the Laravel API.
  */
-import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
-  LayoutDashboard, ShoppingCart, PackageOpen, Boxes, Package, FolderTree,
-  Users, Factory, Warehouse, Undo2, BarChart3, Bell, ShieldCheck, Settings,
-  Search, AlertTriangle, Loader2, LogOut, ScrollText, ArrowUpRight, FileText,
-  Sun, Moon, TrendingUp, DollarSign, TriangleAlert, Truck, PackageX,
+  ShoppingCart, PackageOpen, Boxes, Loader2, AlertTriangle,
+  TrendingUp, DollarSign, TriangleAlert, Truck, PackageX, Eye, Download,
 } from "lucide-react";
-import { endpoints, NAV_MODULES } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
-import { useTheme } from "@/lib/theme";
+import { endpoints, NAV_MODULES, openAuthedPdf, downloadAuthedPdf } from "@/lib/api";
+import { AppLayout } from "@/components/AppLayout";
 
-const ICONS: Record<string, any> = {
-  LayoutDashboard, ShoppingCart, PackageOpen, Boxes, Package, FolderTree,
-  Users, Factory, Warehouse, Undo2, BarChart3, Bell, ShieldCheck, Settings, FileText,
-};
-
-// API returns money as dollars — format as-is.
 const money = (n: number) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 const num = (n: number) => (n ?? 0).toLocaleString("en-US");
 
-const ROUTES: Record<string, string> = {
-  "sales-orders": "/sales-orders",
-  "purchase-orders": "/purchase-orders",
-};
-
-/* ---- generic table views (non-dashboard modules) ------------------------- */
 type Column = { key: string; label: string; render?: (row: any) => React.ReactNode };
 type ModuleView = { load: () => Promise<any>; rows: (r: any) => any[]; columns: Column[] };
 
@@ -87,9 +73,14 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "customer", label: "Customer", render: (i) => i.customer || "—" },
       { key: "issued_date", label: "Issued", render: (i) => i.issued_date ?? "—" },
       { key: "total", label: "Total", render: (i) => money(i.total) },
-      { key: "pdf", label: "", render: (i) => i.pdf_url
-        ? <a href={i.pdf_url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline dark:text-indigo-400">PDF</a>
-        : <span className="text-slate-400">—</span> },
+      {
+        key: "actions", label: "Invoice", render: (i) => i.pdf_url ? (
+          <div className="flex gap-3">
+            <button onClick={() => openAuthedPdf(i.pdf_url)} className="flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"><Eye size={14} /> View</button>
+            <button onClick={() => downloadAuthedPdf(i.pdf_url, `${i.invoice_number}.pdf`)} className="flex items-center gap-1 text-slate-500 hover:underline"><Download size={14} /> Download</button>
+          </div>
+        ) : <span className="text-slate-400">—</span>,
+      },
     ],
   },
   vendors: {
@@ -172,16 +163,20 @@ const STATUS_STYLE: Record<string, string> = {
 const statusPill = (s: string) =>
   STATUS_STYLE[s] ?? "bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300";
 
-/* ========================================================================= */
 export default function ConsolePage() {
-  const router = useRouter();
-  const { user, isAdmin, logout } = useAuth();
-  const { theme, toggle } = useTheme();
-  const [active, setActive] = useState("dashboard");
-  const [state, setState] = useState<{ loading: boolean; error?: string; data?: any }>({ loading: true });
+  return (
+    <Suspense fallback={null}>
+      <ConsoleInner />
+    </Suspense>
+  );
+}
 
+function ConsoleInner() {
+  const params = useSearchParams();
+  const active = params.get("m") ?? "dashboard";
   const isDashboard = active === "dashboard";
   const view = VIEWS[active];
+  const [state, setState] = useState<{ loading: boolean; error?: string; data?: any }>({ loading: true });
 
   useEffect(() => {
     let alive = true;
@@ -195,120 +190,31 @@ export default function ConsolePage() {
   }, [active]); // eslint-disable-line
 
   const rows = useMemo(() => (view && state.data ? view.rows(state.data) : []), [view, state.data]);
-
-  function selectModule(key: string) {
-    if (ROUTES[key]) router.push(ROUTES[key]);
-    else setActive(key);
-  }
-  async function handleLogout() { await logout(); router.replace("/login"); }
-
-  const activeLabel = NAV_MODULES.find((m) => m.key === active)?.label ?? active;
+  const title = NAV_MODULES.find((m) => m.key === active)?.label ?? "Dashboard";
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      {/* Sidebar */}
-      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-600 font-bold text-white">W</div>
+    <AppLayout current={active}>
+      <h1 className="mb-5 text-xl font-semibold">{title}</h1>
+
+      {state.loading && (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="animate-spin" size={18} /> Loading {title}…
+        </div>
+      )}
+
+      {state.error && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <AlertTriangle size={18} />
           <div>
-            <div className="text-sm font-semibold">WMS Console</div>
-            <div className="text-[11px] text-slate-400">Enterprise Edition</div>
+            <div className="font-medium">Could not load {title}.</div>
+            <div className="text-sm opacity-80">{state.error}</div>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-2">
-          {NAV_MODULES.map((m) => {
-            const Icon = ICONS[m.icon] ?? Package;
-            const on = active === m.key;
-            return (
-              <button
-                key={m.key}
-                onClick={() => selectModule(m.key)}
-                className={`mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  on
-                    ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
-                    : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                <Icon size={17} />
-                <span className="flex-1 text-left">{m.label}</span>
-                {ROUTES[m.key] && <ArrowUpRight size={13} className="text-slate-300 dark:text-slate-600" />}
-              </button>
-            );
-          })}
-          {isAdmin && (
-            <button
-              onClick={() => router.push("/activity-logs")}
-              className="mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <ScrollText size={17} />
-              <span className="flex-1 text-left">Activity Logs</span>
-              <ArrowUpRight size={13} className="text-slate-300 dark:text-slate-600" />
-            </button>
-          )}
-        </nav>
-      </aside>
+      )}
 
-      {/* Main */}
-      <main className="min-w-0 flex-1">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-lg font-semibold">{activeLabel}</h1>
-          <div className="flex items-center gap-3">
-            <div className="relative hidden md:block">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                placeholder="Global search…"
-                className="w-56 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              />
-            </div>
-            <button
-              onClick={toggle}
-              title="Toggle theme"
-              className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-            {user && (
-              <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
-                <div className="text-right leading-tight">
-                  <div className="text-sm font-medium">{user.name}</div>
-                  <div className="text-[11px] capitalize text-slate-400">{user.role?.replace(/_/g, " ")}</div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:text-red-600 dark:border-slate-700 dark:text-slate-300"
-                >
-                  <LogOut size={15} /> Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
-
-        <section className="p-6">
-          {state.loading && (
-            <div className="flex items-center gap-2 text-slate-400">
-              <Loader2 className="animate-spin" size={18} /> Loading {activeLabel}…
-            </div>
-          )}
-
-          {state.error && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-              <AlertTriangle size={18} />
-              <div>
-                <div className="font-medium">Could not load {activeLabel}.</div>
-                <div className="text-sm opacity-80">{state.error} — is the API running?</div>
-              </div>
-            </div>
-          )}
-
-          {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} />}
-
-          {!state.loading && !state.error && !isDashboard && view && (
-            <DataTable columns={view.columns} rows={rows} />
-          )}
-        </section>
-      </main>
-    </div>
+      {!state.loading && !state.error && isDashboard && <Dashboard data={state.data} />}
+      {!state.loading && !state.error && !isDashboard && view && <DataTable columns={view.columns} rows={rows} />}
+    </AppLayout>
   );
 }
 
@@ -333,7 +239,6 @@ function Dashboard({ data }: { data: any }) {
 
   return (
     <div className="space-y-6">
-      {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -348,7 +253,6 @@ function Dashboard({ data }: { data: any }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Revenue chart */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
           <h3 className="mb-4 text-sm font-semibold">Revenue — last 6 months</h3>
           <div className="h-64">
@@ -365,10 +269,8 @@ function Dashboard({ data }: { data: any }) {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" width={60}
-                    tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
-                  <Tooltip formatter={(v: any) => money(Number(v))}
-                    contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" width={60} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} />
                   <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} fill="url(#rev)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -376,7 +278,6 @@ function Dashboard({ data }: { data: any }) {
           </div>
         </div>
 
-        {/* Top customers */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <h3 className="mb-3 text-sm font-semibold">Top customers</h3>
           {topCustomers.length === 0 ? (
@@ -389,7 +290,7 @@ function Dashboard({ data }: { data: any }) {
                     <span className="grid h-6 w-6 place-items-center rounded-full bg-indigo-100 text-[11px] font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{i + 1}</span>
                     {c.name || "—"}
                   </span>
-                  <span className="tabular-nums font-medium">{money(c.revenue)}</span>
+                  <span className="font-medium tabular-nums">{money(c.revenue)}</span>
                 </li>
               ))}
             </ul>
@@ -397,7 +298,6 @@ function Dashboard({ data }: { data: any }) {
         </div>
       </div>
 
-      {/* Recent orders */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
           <Truck size={16} className="text-slate-400" />
@@ -436,18 +336,14 @@ function DataTable({ columns, rows }: { columns: Column[]; rows: any[] }) {
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-          <tr>
-            {columns.map((c) => <th key={c.key} className="px-4 py-3 font-medium">{c.label}</th>)}
-          </tr>
+          <tr>{columns.map((c) => <th key={c.key} className="px-4 py-3 font-medium">{c.label}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {rows.length === 0 ? (
             <tr><td colSpan={columns.length} className="px-4 py-10 text-center text-slate-400">No records yet.</td></tr>
           ) : rows.map((row, i) => (
             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              {columns.map((c) => (
-                <td key={c.key} className="px-4 py-3">{c.render ? c.render(row) : String(row[c.key] ?? "—")}</td>
-              ))}
+              {columns.map((c) => <td key={c.key} className="px-4 py-3">{c.render ? c.render(row) : String(row[c.key] ?? "—")}</td>)}
             </tr>
           ))}
         </tbody>

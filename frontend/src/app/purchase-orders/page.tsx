@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X, Search, Trash2, Loader2, RefreshCw, PackageCheck } from "lucide-react";
 import { endpoints, ApiError } from "@/lib/api";
-import { AppBar } from "@/components/AppBar";
+import { AppLayout } from "@/components/AppLayout";
 
 const money = (n: number) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 
@@ -50,9 +50,8 @@ export default function PurchaseOrdersPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <AppLayout current="purchase-orders">
       <div className="mx-auto max-w-6xl">
-        <AppBar />
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Purchase Orders</h1>
@@ -73,7 +72,7 @@ export default function PurchaseOrdersPage() {
             <option value="">All statuses</option>
             {PO_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
           </select>
-          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-white">
+          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -98,10 +97,10 @@ export default function PurchaseOrdersPage() {
                 <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No purchase orders yet.</td></tr>
               ) : (
                 rows.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-50">
+                  <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-3 font-mono text-xs">{o.po_number}</td>
                     <td className="px-4 py-3">{o.vendor?.name ?? "—"}</td>
-                    <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize">{String(o.status).replace(/_/g, " ")}</span></td>
+                    <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize dark:bg-slate-700 dark:text-slate-200">{String(o.status).replace(/_/g, " ")}</span></td>
                     <td className="px-4 py-3 text-slate-500">{o.ordered_date ?? "—"}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{money(o.totals?.grand_total ?? o.grand_total_cents ?? 0)}</td>
                   </tr>
@@ -113,7 +112,7 @@ export default function PurchaseOrdersPage() {
       </div>
 
       {showCreate && <CreatePO onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
-    </div>
+    </AppLayout>
   );
 }
 
@@ -168,7 +167,7 @@ function CreatePO({ onClose, onCreated }: { onClose: () => void; onCreated: () =
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div className="h-full w-full max-w-4xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="h-full w-full max-w-4xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold"><PackageCheck size={18} className="text-indigo-600" /> New Purchase Order</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
@@ -203,9 +202,9 @@ function CreatePO({ onClose, onCreated }: { onClose: () => void; onCreated: () =
               <div className="relative flex-[5]">
                 <input value={l.product_name} onChange={(e) => searchProducts(i, e.target.value)} placeholder="Product name or search…" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 {prodRow === i && prodResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 max-h-44 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                  <div className="absolute z-10 mt-1 max-h-44 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
                     {prodResults.map((p) => (
-                      <button key={p.id} onClick={() => { setLine(i, { product_id: p.id, product_name: p.name, unit_cost: p.default_cost_cents ?? 0 }); setProdResults([]); setProdRow(null); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">
+                      <button key={p.id} onClick={() => { setLine(i, { product_id: p.id, product_name: p.name, unit_cost: p.default_cost_cents ?? 0 }); setProdResults([]); setProdRow(null); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
                         {p.name} <span className="text-slate-400">· {p.sku}</span>
                       </button>
                     ))}

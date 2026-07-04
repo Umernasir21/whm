@@ -13,11 +13,11 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Plus, X, Search, Trash2, Truck, FileText, Loader2, RefreshCw, PackageCheck,
-  UserPlus, Printer,
+  Plus, X, Search, Trash2, Truck, Loader2, RefreshCw, PackageCheck,
+  UserPlus, Printer, Eye, Download,
 } from "lucide-react";
-import { api, endpoints, ApiError } from "@/lib/api";
-import { AppBar } from "@/components/AppBar";
+import { api, endpoints, ApiError, openAuthedPdf, downloadAuthedPdf } from "@/lib/api";
+import { AppLayout } from "@/components/AppLayout";
 
 const money = (n: number) =>
   (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -98,9 +98,8 @@ export default function SalesOrdersPage() {
   }, [load]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <AppLayout current="sales-orders">
       <div className="mx-auto max-w-6xl">
-        <AppBar />
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Sales Orders</h1>
@@ -158,7 +157,7 @@ export default function SalesOrdersPage() {
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
           </select>
-          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-white">
+          <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -189,14 +188,14 @@ export default function SalesOrdersPage() {
                 <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No sales orders yet.</td></tr>
               ) : (
                 orders.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-50">
+                  <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-3 font-mono text-xs">{o.so_number}</td>
                     <td className="px-4 py-3">
                       {o.customer ? `${o.customer.first_name} ${o.customer.last_name ?? ""}` : "—"}
                     </td>
                     <td className="px-4 py-3 capitalize">{o.order_type}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize dark:bg-slate-700 dark:text-slate-200">
                         {String(o.status).replace(/_/g, " ")}
                       </span>
                     </td>
@@ -210,7 +209,7 @@ export default function SalesOrdersPage() {
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => setEditing(o)}
-                        className="rounded-lg border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100"
+                        className="rounded-lg border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                       >
                         Manage
                       </button>
@@ -229,7 +228,7 @@ export default function SalesOrdersPage() {
       {editing && (
         <EditDrawer order={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       )}
-    </div>
+    </AppLayout>
   );
 }
 
@@ -320,12 +319,12 @@ function CreateDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               />
               {custSearch.results.length > 0 && (
-                <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
                   {custSearch.results.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => { setCustomer(c); custSearch.clear(); }}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       {c.first_name} {c.last_name} <span className="text-slate-400">· {c.email}</span>
                     </button>
@@ -405,11 +404,11 @@ function CreateDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: 
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
                 {prodRow === i && prodSearch.results.length > 0 && (
-                  <div className="absolute z-10 mt-1 max-h-44 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                  <div className="absolute z-10 mt-1 max-h-44 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
                     {prodSearch.results.map((p) => (
                       <button key={p.id}
                         onClick={() => { setLine(i, { product_id: p.id, product_name: p.name, unit_cost: p.default_price_cents ?? 0, buy_cost: p.default_cost_cents ?? 0 }); prodSearch.clear(); setProdRow(null); }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
                         {p.name} <span className="text-slate-400">· {p.sku}</span>
                       </button>
                     ))}
@@ -426,7 +425,7 @@ function CreateDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: 
               <div className="flex flex-[2] overflow-hidden rounded-lg border border-slate-200 text-xs">
                 {(["rg", "ds"] as const).map((t) => (
                   <button key={t} onClick={() => setLine(i, { line_type: t })}
-                    className={`flex-1 py-2 ${l.line_type === t ? "bg-indigo-600 text-white" : "bg-white text-slate-500"}`}>
+                    className={`flex-1 py-2 ${l.line_type === t ? "bg-indigo-600 text-white" : "bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
                     {t === "rg" ? "Rg" : "Ds"}
                   </button>
                 ))}
@@ -526,7 +525,7 @@ function AddCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-semibold"><UserPlus size={18} className="text-indigo-600" /> Add Customer</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
@@ -591,13 +590,24 @@ function EditDrawer({ order, onClose, onSaved }: { order: any; onClose: () => vo
     } finally { setBusy(false); }
   }
 
-  async function invoice() {
+  async function invoiceUrl(): Promise<string | undefined> {
+    const res: any = await endpoints.generateInvoice(order.id); // idempotent
+    return res?.data?.pdf_url;
+  }
+  async function viewInvoice() {
     setBusy(true); setMsg(undefined);
-    try {
-      await endpoints.generateInvoice(order.id);
-      setMsg("Invoice generated.");
-    } catch (e: any) { setMsg(e.message); }
-    finally { setBusy(false); }
+    try { const u = await invoiceUrl(); if (u) await openAuthedPdf(u); setMsg("Invoice opened in a new tab."); }
+    catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
+  }
+  async function downloadInvoice() {
+    setBusy(true); setMsg(undefined);
+    try { const u = await invoiceUrl(); if (u) await downloadAuthedPdf(u, `${order.so_number}-invoice.pdf`); }
+    catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
+  }
+  async function printLabel() {
+    setBusy(true); setMsg(undefined);
+    try { await openAuthedPdf(endpoints.labelUrl(order.id)); }
+    catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
   }
 
   return (
@@ -624,18 +634,20 @@ function EditDrawer({ order, onClose, onSaved }: { order: any; onClose: () => vo
 
       {msg && <p className="text-sm text-indigo-600">{msg}</p>}
 
-      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-        <div className="flex gap-2">
-          <button onClick={invoice} disabled={busy} className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm disabled:opacity-60">
-            <FileText size={15} /> Invoice
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={viewInvoice} disabled={busy} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
+            <Eye size={15} /> View Invoice
           </button>
-          <a href={endpoints.labelUrl(order.id)} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm">
-            <Printer size={15} /> Print Label
-          </a>
+          <button onClick={downloadInvoice} disabled={busy} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
+            <Download size={15} /> Download
+          </button>
+          <button onClick={printLabel} disabled={busy} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
+            <Printer size={15} /> Label
+          </button>
         </div>
         <div className="flex gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm">Close</button>
+          <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">Close</button>
           <button onClick={save} disabled={busy} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Truck size={15} />} Save
           </button>
@@ -651,7 +663,7 @@ function EditDrawer({ order, onClose, onSaved }: { order: any; onClose: () => vo
 function Drawer({ title, onClose, width, children }: { title: string; onClose: () => void; width: string; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div className={`h-full w-full ${width} overflow-y-auto bg-white p-6 shadow-2xl`} onClick={(e) => e.stopPropagation()}>
+      <div className={`h-full w-full ${width} overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-900`} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold"><PackageCheck size={18} className="text-indigo-600" /> {title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
