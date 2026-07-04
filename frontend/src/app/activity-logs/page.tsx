@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { ScrollText, Loader2, ShieldAlert, RefreshCw } from "lucide-react";
 import { endpoints, ApiError } from "@/lib/api";
+import { AppBar } from "@/components/AppBar";
 
 const ACTION_STYLE: Record<string, string> = {
   created: "bg-emerald-100 text-emerald-700",
@@ -54,6 +55,7 @@ export default function ActivityLogsPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 text-slate-900">
       <div className="mx-auto max-w-6xl">
+        <AppBar />
         <div className="mb-5 flex items-center gap-2">
           <ScrollText size={20} className="text-indigo-600" />
           <div>

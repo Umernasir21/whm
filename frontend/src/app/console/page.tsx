@@ -9,20 +9,31 @@
  * detail screens (create/edit drawers) extend.
  */
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, ShoppingCart, PackageOpen, Boxes, Package, FolderTree,
   Users, Factory, Warehouse, Undo2, BarChart3, Bell, ShieldCheck, Settings,
-  Search, AlertTriangle, Loader2,
+  Search, AlertTriangle, Loader2, LogOut, ScrollText, ArrowUpRight,
 } from "lucide-react";
 import { endpoints, NAV_MODULES } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const ICONS: Record<string, any> = {
   LayoutDashboard, ShoppingCart, PackageOpen, Boxes, Package, FolderTree,
   Users, Factory, Warehouse, Undo2, BarChart3, Bell, ShieldCheck, Settings,
 };
 
-const money = (cents: number) =>
-  (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+// The API already returns money as dollars (via the Money cast), so format
+// as-is — do NOT divide by 100.
+const money = (n: number) =>
+  (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Modules that have a richer dedicated page — clicking them navigates there
+// instead of rendering an in-console table.
+const ROUTES: Record<string, string> = {
+  "sales-orders": "/sales-orders",
+  "purchase-orders": "/purchase-orders",
+};
 
 /** How each module loads + which columns to show. */
 type Column = { key: string; label: string; render?: (row: any) => React.ReactNode };
@@ -118,13 +129,59 @@ const VIEWS: Record<string, ModuleView> = {
       { key: "created_at", label: "When", render: (n) => new Date(n.created_at).toLocaleString() },
     ],
   },
+  customers: {
+    load: () => endpoints.customers(""),
+    rows: (r: any) => r?.data ?? [],
+    columns: [
+      { key: "name", label: "Name", render: (c) => `${c.first_name} ${c.last_name ?? ""}`.trim() },
+      { key: "email", label: "Email" },
+      { key: "company_name", label: "Company", render: (c) => c.company_name || "—" },
+      { key: "city", label: "City", render: (c) => c.shipping?.city ?? "—" },
+    ],
+  },
+  reports: {
+    // Inventory valuation lines — a real, useful report out of the box.
+    load: () => endpoints.v1.reports.inventoryValuation(),
+    rows: (r: any) => r?.lines ?? [],
+    columns: [
+      { key: "sku", label: "SKU" },
+      { key: "name", label: "Product" },
+      { key: "quantity", label: "Qty" },
+      { key: "value", label: "Stock Value", render: (l) => money(l.value) },
+    ],
+  },
+  settings: {
+    load: () => endpoints.v1.settings(),
+    // Settings come grouped; flatten to a flat key/value list.
+    rows: (r: any) => (r && typeof r === "object" ? Object.values(r).flat() : []),
+    columns: [
+      { key: "key", label: "Setting" },
+      { key: "value", label: "Value", render: (s) => String(s.value ?? "—") },
+      { key: "group", label: "Group" },
+    ],
+  },
 };
 
 export default function ConsolePage() {
+  const router = useRouter();
+  const { user, isAdmin, logout } = useAuth();
   const [active, setActive] = useState<string>("dashboard");
   const [state, setState] = useState<{ loading: boolean; error?: string; data?: any }>({ loading: true });
 
   const view = VIEWS[active];
+
+  function selectModule(key: string) {
+    if (ROUTES[key]) {
+      router.push(ROUTES[key]); // dedicated full-featured page
+    } else {
+      setActive(key);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
 
   useEffect(() => {
     let alive = true;
@@ -159,19 +216,32 @@ export default function ConsolePage() {
           {NAV_MODULES.map((m) => {
             const Icon = ICONS[m.icon] ?? Package;
             const on = active === m.key;
+            const isLink = !!ROUTES[m.key];
             return (
               <button
                 key={m.key}
-                onClick={() => setActive(m.key)}
+                onClick={() => selectModule(m.key)}
                 className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm mb-0.5 transition ${
                   on ? "bg-indigo-50 text-indigo-700 font-medium" : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <Icon size={17} />
-                {m.label}
+                <span className="flex-1 text-left">{m.label}</span>
+                {isLink && <ArrowUpRight size={13} className="text-slate-300" />}
               </button>
             );
           })}
+          {/* Admin-only: audit trail */}
+          {isAdmin && (
+            <button
+              onClick={() => router.push("/activity-logs")}
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm mb-0.5 text-slate-600 transition hover:bg-slate-50"
+            >
+              <ScrollText size={17} />
+              <span className="flex-1 text-left">Activity Logs</span>
+              <ArrowUpRight size={13} className="text-slate-300" />
+            </button>
+          )}
         </nav>
       </aside>
 
@@ -181,12 +251,29 @@ export default function ConsolePage() {
           <h1 className="text-lg font-semibold capitalize">
             {NAV_MODULES.find((m) => m.key === active)?.label ?? active}
           </h1>
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              placeholder="Global search…"
-              className="w-72 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-400"
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                placeholder="Global search…"
+                className="w-64 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+            {user && (
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                <div className="text-right leading-tight">
+                  <div className="text-sm font-medium">{user.name}</div>
+                  <div className="text-[11px] capitalize text-slate-400">{user.role?.replace(/_/g, " ")}</div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  title="Sign out"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-red-600"
+                >
+                  <LogOut size={15} /> Logout
+                </button>
+              </div>
+            )}
           </div>
         </header>
 

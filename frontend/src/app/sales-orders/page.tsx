@@ -17,6 +17,7 @@ import {
   UserPlus, Printer,
 } from "lucide-react";
 import { api, endpoints, ApiError } from "@/lib/api";
+import { AppBar } from "@/components/AppBar";
 
 const money = (n: number) =>
   (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -99,6 +100,7 @@ export default function SalesOrdersPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 text-slate-900">
       <div className="mx-auto max-w-6xl">
+        <AppBar />
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Sales Orders</h1>
