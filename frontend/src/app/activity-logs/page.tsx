@@ -46,7 +46,7 @@ export default function ActivityLogsPage() {
         <div className="flex max-w-sm flex-col items-center gap-3 text-center">
           <ShieldAlert size={40} className="text-amber-500" />
           <h1 className="text-lg font-semibold">Administrators only</h1>
-          <p className="text-sm text-slate-500">The activity log is restricted to admin accounts.</p>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">The activity log is restricted to admin accounts.</p>
         </div>
       </div>
     );
@@ -58,8 +58,8 @@ export default function ActivityLogsPage() {
         <div className="mb-5 flex items-center gap-2">
           <ScrollText size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Activity Logs</h1>
-            <p className="text-sm text-slate-500">Who created, updated, or deleted what — full audit trail.</p>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Activity Logs</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Who created, updated, or deleted what — full audit trail.</p>
           </div>
         </div>
 

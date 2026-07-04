@@ -164,7 +164,7 @@ export default function ReportsPage() {
         <div className="mb-5 flex items-center gap-2">
           <BarChart3 size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Reports</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Sales, purchases, inventory and more — with CSV export.</p>
           </div>
         </div>

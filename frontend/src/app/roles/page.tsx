@@ -36,7 +36,7 @@ export default function RolesPage() {
         <div className="flex flex-col items-center gap-3 py-20 text-center">
           <ShieldAlert size={40} className="text-amber-500" />
           <h1 className="text-lg font-semibold">Administrators only</h1>
-          <p className="text-sm text-slate-500">Role management is restricted to admin accounts.</p>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Role management is restricted to admin accounts.</p>
         </div>
       </AppLayout>
     );
@@ -48,7 +48,7 @@ export default function RolesPage() {
         <div className="mb-5 flex items-center gap-2">
           <ShieldCheck size={20} className="text-indigo-600" />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Roles &amp; Permissions</h1>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Roles &amp; Permissions</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Grant or revoke what each role can do.</p>
           </div>
         </div>

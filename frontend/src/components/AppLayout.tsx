@@ -4,8 +4,9 @@
  * user avatar + logout) + the page content.
  */
 import { useRouter } from "next/navigation";
-import { Search, Sun, Moon, LogOut } from "lucide-react";
+import { Sun, Moon, LogOut } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { GlobalSearch } from "./GlobalSearch";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 
@@ -28,15 +29,8 @@ export function AppLayout({ current, children }: { current: string; children: Re
     <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Sidebar current={current} />
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 px-6 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/70">
-          <button
-            className="group hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 py-1.5 pl-2.5 pr-2 text-sm text-slate-400 transition hover:border-slate-300 hover:bg-white md:flex dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
-            title="Search"
-          >
-            <Search size={15} />
-            <span className="w-40 text-left">Search…</span>
-            <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-2xs font-medium text-slate-400 dark:border-slate-700 dark:bg-slate-800">⌘K</kbd>
-          </button>
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-slate-200/70 bg-white/80 px-6 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/70">
+          <div className="hidden flex-1 md:block"><GlobalSearch /></div>
 
           <div className="flex items-center gap-2.5">
             <button

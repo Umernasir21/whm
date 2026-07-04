@@ -54,8 +54,8 @@ export default function PurchaseOrdersPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Purchase Orders</h1>
-            <p className="text-sm text-slate-500">Track purchased inventory — product, condition, qty, tax, cost.</p>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Purchase Orders</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Track purchased inventory — product, condition, qty, tax, cost.</p>
           </div>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
             <Plus size={16} /> New Purchase Order

@@ -270,8 +270,8 @@ function ConsoleInner() {
 
   return (
     <AppLayout current={active}>
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{title}</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">{title}</h1>
         {view?.form && (
           <button
             onClick={() => setShowCreate(true)}
@@ -289,11 +289,7 @@ function ConsoleInner() {
         <FormModal config={view.form} row={editRow} onClose={() => setEditRow(null)} onSaved={() => { setEditRow(null); setRefresh((n) => n + 1); }} />
       )}
 
-      {state.loading && (
-        <div className="flex items-center gap-2 text-slate-400">
-          <Loader2 className="animate-spin" size={18} /> Loading {title}…
-        </div>
-      )}
+      {state.loading && (isDashboard ? <DashboardSkeleton /> : <TableSkeleton cols={view?.columns.length ?? 5} />)}
 
       {state.error && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
@@ -350,7 +346,7 @@ function Dashboard({ data }: { data: any }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold tracking-tight">Revenue</h3>
+            <h3 className="text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Revenue</h3>
             <span className="text-2xs font-medium uppercase tracking-wider text-slate-400">Last 6 months</span>
           </div>
           <div className="h-64">
@@ -381,7 +377,7 @@ function Dashboard({ data }: { data: any }) {
         </div>
 
         <div className="card p-5">
-          <h3 className="mb-3 text-sm font-semibold tracking-tight">Top customers</h3>
+          <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Top customers</h3>
           {topCustomers.length === 0 ? (
             <div className="py-8 text-center text-sm text-slate-400">No sales yet.</div>
           ) : (
@@ -403,7 +399,7 @@ function Dashboard({ data }: { data: any }) {
       <div className="card overflow-hidden">
         <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
           <Truck size={15} className="text-slate-400" />
-          <h3 className="text-sm font-semibold tracking-tight">Recent orders</h3>
+          <h3 className="text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">Recent orders</h3>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
@@ -467,6 +463,52 @@ function DataTable({ columns, rows, onEdit }: { columns: Column[]; rows: any[]; 
       </div>
       {view && <ViewModal columns={columns} row={view} onClose={() => setView(null)} onEdit={onEdit ? () => { onEdit(view); setView(null); } : undefined} />}
     </>
+  );
+}
+
+/* ---- Skeleton loaders ---------------------------------------------------- */
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="card p-4">
+            <div className="flex items-start justify-between">
+              <div className="skeleton h-3 w-16" />
+              <div className="skeleton h-7 w-7 rounded-lg" />
+            </div>
+            <div className="skeleton mt-3 h-7 w-24" />
+            <div className="skeleton mt-2 h-3 w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="card p-5 lg:col-span-2"><div className="skeleton h-64 w-full rounded-lg" /></div>
+        <div className="card space-y-3 p-5">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 w-full" />)}
+        </div>
+      </div>
+      <div className="card p-5"><div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 w-full" />)}</div></div>
+    </div>
+  );
+}
+
+function TableSkeleton({ cols }: { cols: number }) {
+  return (
+    <div className="card overflow-hidden">
+      <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
+        <div className="skeleton h-3 w-24" />
+      </div>
+      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        {Array.from({ length: 8 }).map((_, r) => (
+          <div key={r} className="flex items-center gap-4 px-4 py-3.5">
+            {Array.from({ length: cols }).map((_, c) => (
+              <div key={c} className="skeleton h-3.5" style={{ width: c === 0 ? "18%" : `${12 + ((c * 7) % 22)}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

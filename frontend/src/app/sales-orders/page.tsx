@@ -102,8 +102,8 @@ export default function SalesOrdersPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Sales Orders</h1>
-            <p className="text-sm text-slate-500">Create, track, ship, and invoice orders.</p>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-slate-900 dark:text-white">Sales Orders</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Create, track, ship, and invoice orders.</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
