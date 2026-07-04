@@ -183,9 +183,14 @@ const VIEWS: Record<string, ModuleView> = {
     rows: (r) => r?.data ?? [],
     columns: [
       { key: "rma_number", label: "RMA #" },
-      { key: "status", label: "Status" },
-      { key: "reason", label: "Reason" },
-      { key: "resolution", label: "Resolution" },
+      { key: "products", label: "Products", render: (r) => {
+        const items = r.items ?? [];
+        const units = items.reduce((s: number, i: any) => s + (i.quantity ?? 0), 0);
+        return items.length ? `${items.length} line${items.length > 1 ? "s" : ""} · ${units} unit${units > 1 ? "s" : ""}` : "—";
+      } },
+      { key: "status", label: "Status", render: (r) => <span className="capitalize">{String(r.status).replace(/_/g, " ")}</span> },
+      { key: "reason", label: "Reason", render: (r) => <span className="capitalize">{String(r.reason ?? "").replace(/_/g, " ")}</span> },
+      { key: "resolution", label: "Resolution", render: (r) => <span className="capitalize">{r.resolution ?? "—"}</span> },
     ],
   },
   reports: {
@@ -378,6 +383,7 @@ function Dashboard({ data, range, onRange }: { data: any; range: DashRange; onRa
   const recent = data?.recent_orders ?? [];
   const topCustomers = data?.top_customers ?? [];
   const lowStock = data?.low_stock_items ?? [];
+  const activity = data?.recent_activity ?? [];
 
   const revSeries = trend.map((t: any) => t.revenue);
   const profitSeries = trend.map((t: any) => t.profit);
@@ -571,19 +577,24 @@ function Dashboard({ data, range, onRange }: { data: any; range: DashRange; onRa
             <span className="cursor-pointer text-xs font-medium text-indigo-600 dark:text-indigo-400">View all</span>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {recent.length === 0 ? (
+            {activity.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-slate-400">No recent activity.</div>
-            ) : recent.slice(0, 5).map((o: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-3">
-                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400"><Activity size={15} /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm text-slate-600 dark:text-slate-300">
-                    Sales Order <span className="font-medium text-indigo-600 dark:text-indigo-400">{o.so_number}</span> is <span className="capitalize">{String(o.status).replace(/_/g, " ")}</span>
+            ) : activity.slice(0, 6).map((a: any, i: number) => {
+              const tint = a.action === "created" ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400"
+                : a.action === "deleted" ? "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400"
+                : "bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400";
+              return (
+                <div key={i} className="flex items-start gap-3 px-5 py-3">
+                  <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${tint}`}><Activity size={15} /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-slate-600 dark:text-slate-300">
+                      <span className="font-medium text-slate-800 dark:text-slate-100">{a.user}</span> {a.action} <span className="text-slate-400">{a.subject}</span> <span className="font-medium text-indigo-600 dark:text-indigo-400">{a.label}</span>
+                    </div>
+                    <div className="mt-0.5 text-2xs text-slate-400">{a.at ? new Date(a.at).toLocaleString() : ""}</div>
                   </div>
-                  <div className="mt-0.5 text-2xs text-slate-400">{o.created_at ? new Date(o.created_at).toLocaleDateString() : ""}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

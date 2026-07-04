@@ -13,6 +13,7 @@ use App\Services\ProfitService;
 use App\Services\ReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -65,6 +66,23 @@ class DashboardController extends Controller
         $outOfStock = Product::where('is_active', true)
             ->whereRaw("{$onHandSub} = 0")->count();
 
+        // Real recent activity across all modules (create/update/delete),
+        // including returns — pulled from the audit log with the acting user.
+        $recentActivity = DB::table('activity_log')
+            ->leftJoin('users', 'users.id', '=', 'activity_log.user_id')
+            ->orderByDesc('activity_log.id')->limit(8)
+            ->get(['activity_log.action', 'activity_log.subject_type', 'activity_log.subject_id', 'activity_log.changes_json', 'activity_log.created_at', 'users.name as user_name'])
+            ->map(function ($r) {
+                $meta = json_decode($r->changes_json ?? '{}', true) ?: [];
+                return [
+                    'action' => $r->action,
+                    'subject' => class_basename($r->subject_type),
+                    'label' => $meta['label'] ?? (class_basename($r->subject_type) . ' #' . $r->subject_id),
+                    'user' => $r->user_name ?? ($meta['user_name'] ?? 'System'),
+                    'at' => $r->created_at,
+                ];
+            });
+
         $lowStockItems = Product::where('reorder_point', '>', 0)
             ->whereRaw("{$onHandSub} <= products.reorder_point")
             ->selectRaw("id, sku, name, reorder_point, {$onHandSub} as on_hand")
@@ -90,6 +108,7 @@ class DashboardController extends Controller
             'recent_orders' => $recent,
             'top_customers' => $this->reports->topCustomers(5),
             'low_stock_items' => $lowStockItems,
+            'recent_activity' => $recentActivity,
         ]);
     }
 }
