@@ -97,10 +97,13 @@ Route::prefix('v1')->group(function () {
         Route::get('settings', [SettingController::class, 'index']);
         Route::put('settings', [SettingController::class, 'update']);
 
-        // Audit trail + login history — admins only ("admin can see all the logs").
+        // Audit trail + login history + role administration — admins only.
         Route::middleware('admin.only')->group(function () {
             Route::get('activity-logs', [\App\Http\Controllers\Api\ActivityLogController::class, 'index']);
             Route::get('login-history', [UserController::class, 'loginHistory']);
+            Route::get('roles-detail', [\App\Http\Controllers\Api\RoleController::class, 'index']);
+            Route::get('permissions', [\App\Http\Controllers\Api\RoleController::class, 'permissions']);
+            Route::put('roles/{role}/permissions', [\App\Http\Controllers\Api\RoleController::class, 'updatePermissions']);
         });
     });
 });

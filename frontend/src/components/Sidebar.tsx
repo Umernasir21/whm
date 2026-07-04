@@ -22,6 +22,7 @@ const ICONS: Record<string, any> = {
 const DEDICATED: Record<string, string> = {
   "sales-orders": "/sales-orders",
   "purchase-orders": "/purchase-orders",
+  reports: "/reports",
 };
 
 export function Sidebar({ current }: { current: string }) {
@@ -36,7 +37,7 @@ export function Sidebar({ current }: { current: string }) {
     return (
       <button
         key={key}
-        onClick={() => (key === "activity-logs" ? router.push("/activity-logs") : go(key))}
+        onClick={() => (key === "activity-logs" || key === "roles" ? router.push(`/${key}`) : go(key))}
         className={`mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
           on
             ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
@@ -61,6 +62,7 @@ export function Sidebar({ current }: { current: string }) {
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         {NAV_MODULES.map((m) => item(m.key, m.label, ICONS[m.icon] ?? Package, !!DEDICATED[m.key]))}
+        {isAdmin && item("roles", "Roles & Permissions", ShieldCheck, true)}
         {isAdmin && item("activity-logs", "Activity Logs", ScrollText, true)}
       </nav>
     </aside>

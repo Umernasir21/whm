@@ -242,6 +242,11 @@ export const endpoints = {
     updateUser: (id: number, d: unknown) => api.put(`${V1}/users/${id}`, d),
     deleteUser: (id: number) => api.del(`${V1}/users/${id}`),
     roles: () => api.get(`${V1}/roles`),
+    // Role administration (admin only).
+    rolesDetail: () => api.get(`${V1}/roles-detail`),
+    permissions: () => api.get(`${V1}/permissions`),
+    updateRolePermissions: (roleId: number, ids: number[]) =>
+      api.put(`${V1}/roles/${roleId}/permissions`, { permissions: ids }),
     // Admin-only audit trail + login history.
     activityLogs: (params = {}) => api.get(`${V1}/activity-logs${qs(params)}`),
     loginHistory: () => api.get(`${V1}/login-history`),
