@@ -11,7 +11,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->statefulApi();
+        // Token-based SPA (Bearer tokens), so we do NOT use Sanctum's stateful
+        // cookie/CSRF mode — that would reject cross-origin browser requests.
         $middleware->throttleApi();
         $middleware->alias([
             'admin.deletes' => \App\Http\Middleware\AdminOnlyDeletes::class,
